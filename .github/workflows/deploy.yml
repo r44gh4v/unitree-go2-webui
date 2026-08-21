@@ -13,12 +13,10 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    env:
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm install --global vercel
-      - run: vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
+      - run: vercel deploy --prod --yes --name=unitree-go2-webui --token=${{ secrets.VERCEL_TOKEN }}
