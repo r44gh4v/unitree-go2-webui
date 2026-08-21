@@ -14,7 +14,7 @@
 
 import crypto from 'node:crypto'
 
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
+const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000
 const COOKIE_NAME = 'webui_session'
 const VERSION = 'v1'
 
