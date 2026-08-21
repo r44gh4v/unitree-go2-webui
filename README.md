@@ -28,6 +28,16 @@ That serves both the interface and the API on http://localhost:8080 with Vite in
 middleware mode, so source edits hot-reload in the open page — no rebuild, no
 manual refresh.
 
+The console is open to anyone who can reach that port, which is fine on your own
+machine. To lock it - worth doing on a shared network - start it with a password:
+
+```
+WEBUI_PASSWORD=something npm start
+```
+
+It then asks for that password once per browser and remembers the answer for
+three months. The server says which mode it started in.
+
 ## Connecting
 
 Four ways to reach the robot, picked at the top of the left panel:
@@ -83,16 +93,12 @@ the console shows a lock screen until it is entered, and every API call is
 refused without it. A cloud deployment with no password does not fall open -
 the API refuses to serve and the page says what to configure.
 
-From a cloud deployment only the **Unitree account** method can reach the robot -
-the address, serial, and hotspot methods need the server to be on the robot's
-own network, and the interface will say so if you try. Sign in, pick the robot,
-and the connection is relayed through Unitree's TURN servers exactly as the
-phone app does it.
-
-The same password gate works locally too: `WEBUI_PASSWORD=... npm start` (or
-`node server/index.mjs --password ...`) locks the console for anyone else on
-your network. Without a password the local server stays open as before, and
-says so at startup.
+A deployed console is the same interface with the same features; what changes is
+which connection method can reach the robot. Use the **Unitree account** method:
+sign in, pick the robot, and the link is relayed through Unitree's TURN servers
+exactly as the phone app does it. The address, serial, and hotspot methods need
+the console to be on the robot's own network, so from the cloud they answer with
+a message saying as much - run the console at home for those.
 
 Latency grows with distance - expect the video to lag more than on your own
 Wi-Fi, and drive accordingly. The Esc stop works the same either way.
@@ -129,6 +135,10 @@ Flips, jumps, and handstands are behind the *Allow dynamic moves* switch on the
 Actions tab. They need clear space and a soft floor, and they can damage the
 robot or injure someone standing nearby.
 
+When the robot reports a fault - an overheating motor, a failed service - it
+appears as a message in the corner whichever tab you are on, so it is not missed
+while you are watching the camera. The full list stays on the Status panel.
+
 ### Motion modes
 
 The robot exposes different commands depending on which motion mode it is in.
@@ -144,6 +154,15 @@ divider under it if you want more or less of it. *Take photo* asks the camera fo
 a JPEG split across several data-channel frames and is reassembled before it
 saves. *Save frame* grabs the current video frame instead, which is faster but
 lower quality.
+
+### Media
+
+The Media tab holds the head light, the speaker, and the robot's audio library.
+Upload any audio file and it is converted to the 44.1 kHz mono WAV the robot
+insists on, then sent over the data channel. You can also record straight from
+your microphone - up to a minute - and either store the clip in the library or
+push it out through megaphone mode, which plays audio without saving it. The
+built-in announcements the robot ships with are there too.
 
 ### Lidar
 
@@ -189,10 +208,12 @@ driven from there.
 
 The browser holds the WebRTC peer connection directly with the robot - video,
 audio, and the data channel all flow point to point. The Node server exists only
-because the browser cannot perform the signaling handshake itself: the robot
-serves no CORS headers, and newer firmware wraps the exchange in AES and RSA.
-So the server relays exactly one thing, the SDP offer and answer, and then steps
-out of the way.
+because the browser cannot perform the signaling handshake itself: neither the
+robot nor Unitree's cloud serves CORS headers, and newer firmware wraps the
+exchange in AES and RSA. So the server relays exactly one thing, the SDP offer
+and answer, and then steps out of the way.
+
+On this network:
 
 ```
 browser  ──POST /api/connect──▶  node server  ──HTTP──▶  robot :9991 or :8081
@@ -200,12 +221,27 @@ browser  ──POST /api/connect──▶  node server  ──HTTP──▶  rob
    └──────────── WebRTC: video, audio, data channel ──────────┘
 ```
 
+From anywhere, with the account method - same shape, one more hop, and the
+media meets in the middle at Unitree's relay:
+
+```
+browser  ──POST /api/connect──▶  server  ──▶  Unitree cloud  ──▶  robot
+   │                                                               │
+   └────────── WebRTC through Unitree's TURN relay ────────────────┘
+```
+
+Everything else happens in the browser: decoding video, unpacking the lidar
+grid, building the voxel mesh, and every control message. The server handles no
+robot traffic at all, which is why a free deployment is enough to run it.
+
 | Path | What lives there |
 | --- | --- |
 | `src/lib/go2.ts` | Data channel protocol: validation, heartbeat, pub/sub, requests |
 | `src/lib/constants.ts` | Topics, API ids, error tables |
 | `src/lib/voxel.ts` | LZ4 and voxel decoding for the lidar, in pure TypeScript |
 | `src/state/RobotContext.tsx` | Shared connection and telemetry state |
+| `src/lib/serverInfo.ts` | Asks the server whether a password gate is in the way |
+| `server/index.mjs` | Local entry: the API plus static files, or Vite with `--dev` |
 | `server/app.mjs` | The API routes, shared by the local server and the cloud function |
 | `server/auth.mjs` | The optional password gate (stateless signed-cookie sessions) |
 | `server/signaling.mjs` | The two LAN handshake flows |

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { refreshServerInfo } from '../lib/serverInfo'
+import { probeServer } from '../lib/serverInfo'
 import { ShieldIcon } from './Icons'
 
 /**
@@ -9,8 +9,8 @@ import { ShieldIcon } from './Icons'
  * nothing but the app; a cloud deployment with no password refuses to serve and
  * is explained here. The session lives in an HttpOnly cookie set by the server,
  * so there is nothing to store on this side. The check re-runs when the window
- * regains focus, so a session that expired while the tab sat open re-locks
- * instead of dead-ending every call in 401s.
+ * regains focus after a while, so a session that expired while the tab sat open
+ * re-locks instead of dead-ending every call in 401s.
  */
 export default function AuthGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<'checking' | 'locked' | 'open' | 'misconfigured'>('checking')
@@ -22,8 +22,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
   const check = useCallback(() => {
     lastCheck.current = Date.now()
-    // Shared with the connection panel, so the page probes the server once.
-    refreshServerInfo().then((d) => {
+    probeServer().then((d) => {
       setState(d.misconfigured ? 'misconfigured' : d.required && !d.authed ? 'locked' : 'open')
     })
   }, [])

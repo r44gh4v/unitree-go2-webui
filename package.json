@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "description": "Web UI to control the Unitree Go2 robot dog over WebRTC",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/r44gh4v/unitree-go2-webui.git"
+  },
   "scripts": {
     "dev": "node server/index.mjs --dev",
     "build": "tsc --noEmit && vite build",
