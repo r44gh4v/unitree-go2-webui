@@ -107,6 +107,23 @@ export function createApp() {
     }
   })
 
+  // Is this cloud robot actually sitting on the server's own network? If so
+  // the whole relay dance is unnecessary - the client asks here first and
+  // connects locally when the robot answers. A cloud deployment has no LAN,
+  // so it answers no instantly rather than multicasting into the void.
+  app.post('/api/cloud/local-check', async (req, res) => {
+    const { serial } = req.body ?? {}
+    if (SERVERLESS || !serial) {
+      res.json({ ip: null })
+      return
+    }
+    try {
+      res.json({ ip: await resolveSerial(serial, 2500) })
+    } catch {
+      res.json({ ip: null })
+    }
+  })
+
   // TURN credentials for a cloud robot, so the browser can build its peer
   // connection with a relay before it makes the offer.
   app.post('/api/cloud/turn', async (req, res) => {

@@ -11,6 +11,7 @@ const STORE = {
     key: 'go2.aesKey',
     email: 'go2.email',
     region: 'go2.region',
+    route: 'go2.route',
 }
 
 const METHODS: { value: ConnectMethod; label: string; blurb: string }[] = [
@@ -44,6 +45,10 @@ export default function ConnectPanel() {
     const [pickedSerial, setPickedSerial] = useState('')
     const [signingIn, setSigningIn] = useState(false)
 
+    // Cloud method: look for the robot on the server's own network first and
+    // connect directly when it answers, instead of relaying everything.
+    const [preferLocal, setPreferLocal] = useState(() => localStorage.getItem(STORE.route) !== 'relay')
+
     const [scanning, setScanning] = useState(false)
     const [found, setFound] = useState<DiscoveredRobot[]>([])
     const [busy, setBusy] = useState(false)
@@ -72,6 +77,7 @@ export default function ConnectPanel() {
             localStorage.setItem(STORE.serial, serial.trim())
             localStorage.setItem(STORE.region, region)
             if (aesKey.trim()) localStorage.setItem(STORE.key, aesKey.trim())
+            localStorage.setItem(STORE.route, preferLocal ? 'auto' : 'relay')
             await connect({
                 method,
                 ip: ip.trim(),
@@ -79,6 +85,7 @@ export default function ConnectPanel() {
                 aesKey: aesKey.trim(),
                 token,
                 region,
+                route: preferLocal ? 'auto' : 'relay',
             })
         } catch (e) {
             log(`Connection failed: ${(e as Error).message}`)
@@ -302,6 +309,27 @@ export default function ConnectPanel() {
                                         </option>
                                     ))}
                                 </select>
+                                <label
+                                    className={`toggle${preferLocal ? ' on' : ''}`}
+                                    style={{ marginTop: 8 }}
+                                    title="Check whether the robot answers on the server's own network and connect directly when it does; the cloud relay is only used when it doesn't"
+                                >
+                                    <span className="toggle-label">
+                                        <PlugIcon size={15} />
+                                        Direct when on the same network
+                                    </span>
+                                    <input
+                                        type="checkbox"
+                                        checked={preferLocal}
+                                        disabled={locked}
+                                        onChange={(e) => {
+                                            setPreferLocal(e.target.checked)
+                                            localStorage.setItem(STORE.route, e.target.checked ? 'auto' : 'relay')
+                                        }}
+                                        style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
+                                    />
+                                    <span className="track" />
+                                </label>
                             </div>
                         )}
 

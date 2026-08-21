@@ -128,9 +128,16 @@ export function installAuth(app, password, { enforce = false } = {}) {
   const key = required ? signingKey(password) : null
   const authed = (req) => !required || tokenValid(key, parseCookies(req.headers.cookie)[COOKIE_NAME] ?? '')
 
-  // Who am I - lets the interface decide whether to show the lock screen.
+  // Who am I - lets the interface decide whether to show the lock screen, and
+  // whether the server has a LAN at all (a cloud deployment does not, so the
+  // client skips local-network checks instead of asking pointlessly).
   app.get('/api/auth', (req, res) => {
-    res.json({ required, authed: !misconfigured && authed(req), misconfigured })
+    res.json({
+      required,
+      authed: !misconfigured && authed(req),
+      misconfigured,
+      serverless: process.env.VERCEL === '1',
+    })
   })
 
   app.post('/api/login', (req, res) => {

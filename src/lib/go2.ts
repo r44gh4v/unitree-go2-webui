@@ -8,6 +8,7 @@
 
 import { md5 } from 'js-md5'
 import { DATA_CHANNEL_TYPE, TOPICS } from './constants'
+import { lastServerInfo } from './serverInfo'
 import { decodeVoxelMesh, type VoxelCloud, type VoxelMesh } from './voxel'
 
 export type ConnState = 'idle' | 'connecting' | 'validating' | 'connected' | 'error' | 'closed'
@@ -135,6 +136,13 @@ export interface ConnectOptions {
   /** per-device AES key (32 hex chars), required on firmware >= 1.1.15 */
   aesKey?: string
   region?: string
+  /**
+   * How a cloud robot is reached. 'auto' (the default) checks whether the
+   * robot answers on the server's own network and connects directly when it
+   * does, falling back to the relay when it does not or when the direct
+   * attempt fails. 'relay' always goes through the cloud.
+   */
+  route?: 'auto' | 'relay'
 }
 
 /** Topics whose payloads arrive many times a second - kept out of the console log. */
@@ -192,11 +200,44 @@ export class Go2Connection extends EventTarget {
     const gen = ++this.generation
     /** True once a later connect or a disconnect has superseded this attempt. */
     const stale = () => this.generation !== gen
-    const method = opts.method ?? 'ip'
-    this.ip = method === 'ap' ? '192.168.12.1' : (opts.ip ?? opts.serial ?? '')
+    let method = opts.method ?? 'ip'
+    let targetIp = opts.ip ?? ''
     this.msgCount = 0
     this.byteCount = 0
     this.setState('connecting')
+
+    // Same-network shortcut: a "cloud" robot that answers on the server's own
+    // LAN does not need the relay at all - signal it locally and the media
+    // stays on this network. A serverless deployment has no LAN, so the check
+    // is skipped there entirely rather than asked and answered no; a slow or
+    // hung check must never stall the real connect.
+    let viaShortcut = false
+    const serverHasLan = lastServerInfo()?.serverless !== true
+    if (method === 'cloud' && opts.serial && serverHasLan && (opts.route ?? 'auto') === 'auto') {
+      try {
+        const ctl = new AbortController()
+        const t = setTimeout(() => ctl.abort(), 4000)
+        const check = await fetch('/api/cloud/local-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ serial: opts.serial }),
+          signal: ctl.signal,
+        })
+        clearTimeout(t)
+        const found = (await check.json()) as { ip?: string | null }
+        if (stale()) return
+        if (found.ip) {
+          method = 'ip'
+          targetIp = found.ip
+          viaShortcut = true
+          this.traffic('sys', `robot is on this network (${found.ip}) - connecting directly, skipping the relay`)
+        }
+      } catch {
+        /* no LAN answer; carry on through the cloud */
+      }
+    }
+
+    this.ip = method === 'ap' ? '192.168.12.1' : (targetIp || (opts.serial ?? ''))
 
     // A LAN robot is directly reachable, so an empty ICE config gathers fast.
     // A cloud robot is behind NAT: the browser must relay through the same TURN
@@ -266,7 +307,7 @@ export class Go2Connection extends EventTarget {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         method,
-        ip: opts.ip ?? '',
+        ip: targetIp,
         serial: opts.serial ?? '',
         token: opts.token ?? '',
         aesKey: opts.aesKey ?? '',
@@ -280,6 +321,13 @@ export class Go2Connection extends EventTarget {
       const msg = body.error ?? `Signaling failed with HTTP ${resp.status}`
       // A superseded attempt must not report its failure over a live session.
       if (stale()) throw new Error(msg)
+      // The direct attempt was an optimisation; its failure is not the user's
+      // problem. Retry the same connect through the relay before giving up.
+      if (viaShortcut) {
+        pc.close()
+        this.traffic('sys', `direct connect failed (${msg}) - retrying through the cloud relay`)
+        return this.connect({ ...opts, route: 'relay' })
+      }
       this.setState('error', msg)
       throw new Error(msg)
     }
@@ -486,6 +534,40 @@ export class Go2Connection extends EventTarget {
     }
   }
 
+  /**
+   * Report which route the media actually took. Even when signaling had to go
+   * through the cloud, ICE prefers a direct pair when both ends share a
+   * network - this makes the outcome visible instead of guessed at.
+   */
+  private async reportMediaPath() {
+    const pc = this.pc
+    if (!pc) return
+    try {
+      const stats = await pc.getStats()
+      let pair: { localCandidateId?: string; remoteCandidateId?: string } | undefined
+      stats.forEach((s) => {
+        if (s.type === 'transport' && s.selectedCandidatePairId) pair = stats.get(s.selectedCandidatePairId)
+      })
+      if (!pair) {
+        stats.forEach((s) => {
+          if (s.type === 'candidate-pair' && s.nominated && s.state === 'succeeded') pair = s
+        })
+      }
+      if (!pair?.localCandidateId || !pair.remoteCandidateId) return
+      const local = stats.get(pair.localCandidateId) as { candidateType?: string } | undefined
+      const remote = stats.get(pair.remoteCandidateId) as { candidateType?: string } | undefined
+      const types = [local?.candidateType, remote?.candidateType]
+      const text = types.includes('relay')
+        ? 'media path: relayed through the cloud (TURN)'
+        : types.every((t) => t === 'host')
+          ? 'media path: direct on this network'
+          : 'media path: direct peer-to-peer across networks'
+      this.traffic('sys', text)
+    } catch {
+      /* stats are best-effort diagnostics */
+    }
+  }
+
   private onValidation(msg: ApiResponse) {
     const data = msg.data as unknown as string
     if (data === 'Validation Ok.') {
@@ -493,6 +575,8 @@ export class Go2Connection extends EventTarget {
       this.setState('connected')
       this.startHeartbeat()
       this.emit('validated')
+      // Give ICE a moment to settle on its final pair before reading it.
+      setTimeout(() => void this.reportMediaPath(), 1500)
       // (re)subscribe everything registered while disconnected
       this.live.clear()
       this.subs.forEach((_cbs, topic) => this.sendSubscribe(topic))
