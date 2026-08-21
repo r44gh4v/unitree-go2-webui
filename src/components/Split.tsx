@@ -76,6 +76,7 @@ export default function Split({ direction = 'vertical', initial, min = 140, max 
   return (
     <div
       ref={containerRef}
+      className="split"
       style={{
         display: 'flex',
         flexDirection: vertical ? 'row' : 'column',

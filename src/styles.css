@@ -15,10 +15,10 @@
   --line: #f0d6c6;
   --line-strong: #e3bfab;
 
-  --text: #4a1620;
+  --text: #3d1019;
   --text-strong: #9e122c;
-  --muted: #966b66;
-  --faint: #b9948c;
+  --muted: #7d544e;
+  --faint: #9c6f67;
 
   --accent: #9e122c;
   --accent-soft: #f99d90;
@@ -27,8 +27,14 @@
   --warn: #c07414;
   --danger: #9e122c;
 
-  --mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
-  --sans: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  /* One warm-technical family for both roles; the system stack takes over
+     cleanly when there is no internet (robot hotspot mode). Mono is reserved
+     for protocol text, code, and keys - numbers use tabular figures instead. */
+  --sans: "IBM Plex Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  /* The only letter-spacing in the interface: uppercase micro-labels need a
+     little air; everything else keeps the font's own metrics. */
+  --track: 0.08em;
   --radius: 8px;
   --shadow: 0 1px 2px rgba(120, 13, 32, 0.06);
 }
@@ -61,25 +67,46 @@ button { font: inherit; color: inherit; }
   overflow: hidden;
 }
 
-.main { display: flex; min-height: 0; min-width: 0; }
+/* The workspace floats its panels on the page ground, VS Code style: each
+   major column is a rounded card, and the gaps between them are the ground
+   itself doubling as the drag handles. */
+.main { display: flex; min-height: 0; min-width: 0; padding: 7px; background: var(--bg); }
 
 /* ---------- resizable split ---------- */
 
-/* Surface behind panes so a short column never reveals the page background. */
-.pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--surface); }
+.pane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(120, 13, 32, 0.07);
+}
+/* A pane that only holds a nested split is plumbing, not a card - the cards
+   are the nested split's own panes. */
+.pane:has(> .split) {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
 /* The direct content of a pane fills it, so its own background covers the pane. */
 .pane > .column { flex: 1; min-height: 0; }
 
+/* Gutters are invisible gaps; a salmon line appears along them on hover or
+   while dragging, the way the modern VS Code handles read. */
 .gutter {
   flex: none;
-  background: var(--line);
+  background: transparent;
   position: relative;
-  transition: background 0.12s;
 }
-.gutter.vertical { width: 5px; cursor: col-resize; }
-.gutter.horizontal { height: 5px; cursor: row-resize; }
-.gutter:hover, .gutter.dragging { background: var(--salmon); }
-/* widen the grab area without widening the line */
+.gutter.vertical { width: 7px; cursor: col-resize; }
+.gutter.horizontal { height: 7px; cursor: row-resize; }
+/* widen the grab area without widening the gap */
 .gutter::after {
   content: "";
   position: absolute;
@@ -89,23 +116,37 @@ button { font: inherit; color: inherit; }
   content: "";
   position: absolute;
   top: 50%;
-  left: 1px;
-  width: 3px;
+  left: 2.5px;
+  width: 2px;
   height: 26px;
   margin-top: -13px;
   border-radius: 2px;
   background: var(--line-strong);
+  transition: background 0.12s, height 0.12s;
 }
 .gutter.horizontal::before {
   content: "";
   position: absolute;
   left: 50%;
-  top: 1px;
-  height: 3px;
+  top: 2.5px;
+  height: 2px;
   width: 26px;
   margin-left: -13px;
   border-radius: 2px;
   background: var(--line-strong);
+  transition: background 0.12s, width 0.12s;
+}
+.gutter.vertical:hover::before, .gutter.vertical.dragging::before {
+  background: var(--salmon);
+  height: calc(100% - 10px);
+  margin-top: 0;
+  top: 5px;
+}
+.gutter.horizontal:hover::before, .gutter.horizontal.dragging::before {
+  background: var(--salmon);
+  width: calc(100% - 10px);
+  margin-left: 0;
+  left: 5px;
 }
 
 /* ---------- stop strip ---------- */
@@ -116,7 +157,7 @@ button { font: inherit; color: inherit; }
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px;
+  padding: 8px;
   background: var(--surface-2);
   border-bottom: 1px solid var(--line-strong);
 }
@@ -161,30 +202,36 @@ button { font: inherit; color: inherit; }
 }
 .estop:hover:not(:disabled) { background: var(--crimson-deep); }
 .estop:active:not(:disabled) { transform: translateY(1px); }
-/* Inert until there is something to stop - stay quiet rather than shout. */
+/* Inert until there is something to stop, but still unmistakably the stop
+   control: same block, drained of urgency, never a hollow outline. */
 .estop:disabled {
-  background: transparent;
-  color: var(--faint);
-  border: 1px dashed var(--line-strong);
+  background: #b97a80;
+  color: var(--cream);
   cursor: not-allowed;
   box-shadow: none;
 }
 
 /* ---------- panels ---------- */
 
-.scroll { overflow-y: auto; min-height: 0; flex: 1; }
+/* Panes scroll vertically only. A stray horizontal scroll (trackpad drift on
+   an element a few px too wide) used to shift a whole tab's content under the
+   pane edge and clip it. */
+.scroll { overflow-y: auto; overflow-x: hidden; min-height: 0; flex: 1; }
 
 .column { background: var(--surface); }
 
 .section { border-bottom: 1px solid var(--line); padding: 12px; }
 .section:last-child { border-bottom: none; }
 
+/* Section labels are wayfinding, not calls to action: warm brown, so crimson
+   stays reserved for STOP, primary buttons, and live state - which is what
+   gives the column its hierarchy. */
 .eyebrow {
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.13em;
+  letter-spacing: var(--track);
   text-transform: uppercase;
-  color: var(--text-strong);
+  color: var(--muted);
   margin: 0 0 10px;
 }
 .icon-eyebrow { display: flex; align-items: center; gap: 6px; }
@@ -238,6 +285,7 @@ button { font: inherit; color: inherit; }
 }
 .head .eyebrow { margin: 0; flex: 1; }
 .head .caret { color: var(--faint); font-size: 11px; }
+.head:hover .eyebrow, .head:hover .caret { color: var(--text-strong); }
 
 /* ---------- forms ---------- */
 
@@ -246,11 +294,13 @@ button { font: inherit; color: inherit; }
   display: block;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--track);
   text-transform: uppercase;
   color: var(--muted);
   margin-bottom: 4px;
 }
+
+select.input { cursor: pointer; }
 
 .input, select.input, textarea.input {
   width: 100%;
@@ -268,6 +318,7 @@ button { font: inherit; color: inherit; }
 textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
 
 .btn {
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -285,7 +336,16 @@ textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
 }
 .btn:hover:not(:disabled) { background: var(--salmon); border-color: var(--salmon); color: var(--crimson-deep); }
 .btn:active:not(:disabled) { transform: translateY(1px); }
-.btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+/* Disabled is a state, not a ghost: sunken fill, quiet edge, text that can
+   still be read - so a disconnected grid looks parked, not broken. */
+.btn:disabled {
+  background: var(--sunken);
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.btn:disabled .action-icon { color: #c9968f; }
 
 .btn:focus-visible, .input:focus-visible, .estop:focus-visible, .tab:focus-visible, .seg-btn:focus-visible {
   outline: 2px solid var(--crimson);
@@ -313,16 +373,24 @@ textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
 
 .btn-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
   gap: 6px;
 }
-.btn-grid .btn { padding: 8px 6px; font-size: 12px; }
+/* Grid buttons may carry long labels ("Foot raise height"): let them wrap
+   inside an even grid instead of forcing their column wide and hugging edges. */
+.btn-grid .btn {
+  padding: 8px 10px;
+  font-size: 12px;
+  white-space: normal;
+  line-height: 1.25;
+  min-width: 0;
+}
 
 /* action buttons stack a symbol over the label; the symbol is the focal point */
 .btn.action {
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 6px;
+  gap: 3px;
+  padding: 6px 5px 7px;
   position: relative;
   overflow: hidden;
 }
@@ -330,8 +398,8 @@ textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
    to cream on an active (toggled-on) tile. No per-state colour drift. */
 .action-icon {
   display: inline-flex;
-  width: 38px;
-  height: 38px;
+  width: 30px;
+  height: 30px;
   color: var(--crimson);
 }
 .btn.action.primary .action-icon { color: var(--cream); }
@@ -360,11 +428,12 @@ textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
   grid-auto-columns: 1fr;
   gap: 2px;
   background: var(--sunken);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 3px;
   margin-bottom: 10px;
 }
 .seg-btn {
+  transition: background 0.12s, color 0.12s;
   background: transparent;
   border: none;
   border-radius: 5px;
@@ -377,9 +446,9 @@ textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.seg-btn:hover:not(:disabled):not(.active) { color: var(--text-strong); }
+.seg-btn:hover:not(:disabled):not(.active) { color: var(--text-strong); background: var(--surface); }
 .seg-btn.active { background: var(--crimson); color: var(--cream); font-weight: 650; }
-.seg-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.seg-btn:disabled { color: var(--faint); cursor: not-allowed; }
 
 /* toggle: label on the left, switch pushed to the right */
 .toggle {
@@ -425,14 +494,15 @@ textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
 .slider-row label {
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track);
   text-transform: uppercase;
   color: var(--muted);
   width: 76px;
   flex: none;
 }
 .slider-row .val {
-  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
   font-size: 12px;
   color: var(--text-strong);
   width: 68px;
@@ -472,11 +542,12 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: var(--faint); }
   flex: none;
 }
 .tab {
+  transition: background 0.12s, color 0.12s;
   flex: 1 1 0;
   min-width: 0;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--track);
   text-transform: uppercase;
   color: var(--muted);
   background: none;
@@ -488,7 +559,7 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: var(--faint); }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.tab:hover { color: var(--text-strong); }
+.tab:hover:not(.active) { color: var(--text-strong); background: var(--surface); }
 .tab.active { color: var(--crimson); border-bottom-color: var(--crimson); background: var(--surface); }
 
 /* ---------- camera ---------- */
@@ -505,27 +576,34 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: var(--faint); }
 }
 .camera video { width: 100%; height: 100%; object-fit: contain; }
 
+/* With no feed the panel recedes into the room instead of sitting as a dark
+   void; the moment video (or the connecting spinner) takes over, it goes dark
+   again so the picture gets a proper surround. */
+.camera:has(.placeholder) {
+  background: var(--sunken);
+  box-shadow: inset 0 0 0 1.5px var(--line);
+}
+
 .camera .placeholder {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  color: rgba(252, 236, 223, 0.55);
+  color: var(--muted);
   font-size: 12px;
   padding: 20px;
   max-width: 360px;
 }
 .camera .placeholder b {
   font-size: 13px;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--track);
   text-transform: uppercase;
-  color: rgba(252, 236, 223, 0.85);
+  color: var(--text);
   margin-bottom: 6px;
 }
-.camera .placeholder.error b { color: var(--salmon); }
+.camera .placeholder.error b { color: var(--crimson); }
 .camera .placeholder .reason {
-  color: rgba(252, 236, 223, 0.75);
-  font-family: var(--mono);
+  color: var(--muted);
   font-size: 12px;
   line-height: 1.5;
   max-width: 320px;
@@ -535,8 +613,8 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: var(--faint); }
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 3px solid rgba(252, 236, 223, 0.2);
-  border-top-color: var(--salmon);
+  border: 3px solid rgba(158, 18, 44, 0.18);
+  border-top-color: var(--crimson);
   animation: spin 0.8s linear infinite;
   margin-bottom: 12px;
 }
@@ -546,7 +624,7 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: var(--faint); }
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 10px;
+  padding: 8px 10px;
   background: var(--surface-2);
   border-top: 1px solid var(--line);
   flex-wrap: wrap;
@@ -618,7 +696,7 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: var(--faint); }
 .joystick .cap {
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--track);
   text-transform: uppercase;
   color: var(--muted);
   margin-top: 5px;
@@ -628,7 +706,7 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: var(--faint); }
 
 .kv { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; font-size: 13px; margin: 0; }
 .kv dt { color: var(--muted); }
-.kv dd { margin: 0; font-family: var(--mono); color: var(--text-strong); text-align: right; }
+.kv dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text-strong); text-align: right; }
 
 /* compact stat tiles */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 6px; }
@@ -641,12 +719,12 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: var(--faint); }
 .stat .label {
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--track);
   text-transform: uppercase;
   color: var(--muted);
 }
 .stat .value {
-  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
   font-size: 16px;
   font-weight: 600;
   color: var(--text-strong);
@@ -664,14 +742,14 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: var(--faint); }
   text-align: left;
   color: var(--muted);
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--track);
   text-transform: uppercase;
   font-size: 10px;
   padding: 4px 6px;
   border-bottom: 1px solid var(--line-strong);
 }
 .table td { padding: 3px 6px; border-bottom: 1px solid var(--line); }
-.table td.num { text-align: right; font-family: var(--mono); }
+.table td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .table td.hot { color: var(--crimson); font-weight: 600; }
 
 /* ---------- log ---------- */
@@ -721,7 +799,6 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: var(--faint); }
   gap: 5px;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.02em;
   padding: 2px 9px;
   border-radius: 999px;
   border: 1px solid transparent;
@@ -800,7 +877,7 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: var(--faint); }
 .toast-src {
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: var(--track);
   text-transform: uppercase;
   color: var(--crimson);
   white-space: nowrap;
@@ -830,16 +907,25 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: var(--faint); }
   display: inline-block;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--track);
   padding: 0 4px;
   border-radius: 3px;
   background: var(--salmon);
   color: var(--crimson-deep);
 }
 
+/* The lidar view fills whatever height the tab has - an empty strip under a
+   fixed-height canvas wastes the one tab that benefits from space. The mount's
+   ResizeObserver keeps the renderer in step with the flexed size. */
+.lidar-section {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
 .lidar-canvas {
   width: 100%;
-  height: 300px;
+  flex: 1;
+  min-height: 220px;
   background: #2a1016;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
@@ -859,7 +945,8 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: var(--faint); }
 /* narrow screens: stack, drop the resizing */
 @media (max-width: 1000px) {
   .app { height: auto; min-height: 100%; grid-template-rows: auto 26px; }
-  .main { flex-direction: column; }
+  .main { flex-direction: column; gap: 7px; }
+  .split { gap: 7px; }
   .pane { width: auto !important; height: auto !important; flex: none !important; }
   .gutter.vertical { display: none; }
   .column { border-bottom: 1px solid var(--line-strong); }

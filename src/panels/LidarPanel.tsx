@@ -176,23 +176,22 @@ export default function LidarPanel() {
   }, [streaming, connected, conn, log])
 
   return (
-    <div className="section">
+    <div className="section lidar-section">
       <p className="eyebrow">Lidar map</p>
       <p className="note">
         The head lidar builds an occupancy grid of the space around the robot. Streaming it uses real bandwidth, so it
         stays off until you ask for it.
       </p>
 
-      <div className="btn-row" style={{ marginBottom: 10 }}>
-        <button
-          className={`btn${streaming ? ' primary' : ''}`}
-          disabled={!connected}
-          title="Turn the head lidar on and stream its 3D occupancy map (uses bandwidth)"
-          onClick={() => setStreaming((s) => !s)}
-        >
-          {streaming ? 'Stop lidar' : 'Start lidar'}
-        </button>
-      </div>
+      <button
+        className={`btn block${streaming ? ' primary' : ''}`}
+        style={{ marginBottom: 10 }}
+        disabled={!connected}
+        title="Turn the head lidar on and stream its 3D occupancy map (uses bandwidth)"
+        onClick={() => setStreaming((s) => !s)}
+      >
+        {streaming ? 'Stop lidar' : 'Start lidar'}
+      </button>
 
       <div ref={mountRef} className="lidar-canvas" />
 
