@@ -28,8 +28,21 @@ if (DEV) {
   app.use(vite.middlewares)
 } else {
   const dist = path.join(__dirname, '..', 'dist')
-  app.use(express.static(dist))
+  // Vite hashes every asset filename, so assets can be cached forever; the
+  // HTML must revalidate so a rebuild shows up on the next load.
+  app.use(express.static(dist, {
+    index: false,
+    setHeaders: (res, filePath) => {
+      res.setHeader(
+        'Cache-Control',
+        filePath.includes(`${path.sep}assets${path.sep}`)
+          ? 'public, max-age=31536000, immutable'
+          : 'public, max-age=0, must-revalidate',
+      )
+    },
+  }))
   app.get(/^\/(?!api\/).*/, (_req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate')
     res.sendFile(path.join(dist, 'index.html'), (err) => {
       if (err) res.status(404).send('The interface has not been built yet. Run: npm run build')
     })

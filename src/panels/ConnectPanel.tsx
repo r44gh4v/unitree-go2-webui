@@ -12,7 +12,11 @@ const STORE = {
   email: 'go2.email',
   region: 'go2.region',
   route: 'go2.route',
+  cloudSession: 'go2.cloudSession',
 }
+
+/** How long a saved cloud sign-in is trusted before asking again. */
+const CLOUD_SESSION_MS = 24 * 60 * 60 * 1000
 
 const METHODS: { value: ConnectMethod; label: string; blurb: string }[] = [
   { value: 'ip', label: 'IP', blurb: 'On this network, address known.' },
@@ -40,9 +44,37 @@ export default function ConnectPanel() {
   const [email, setEmail] = useState(() => localStorage.getItem(STORE.email) ?? '')
   const [password, setPassword] = useState('')
   const [region, setRegion] = useState(() => localStorage.getItem(STORE.region) ?? 'global')
+  // A sign-in is remembered for a day so reopening the console doesn't ask
+  // again; Sign out (or an expired save) drops back to the login form.
   const [token, setToken] = useState('')
   const [cloudRobots, setCloudRobots] = useState<CloudRobot[] | null>(null)
   const [pickedSerial, setPickedSerial] = useState('')
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORE.cloudSession)
+      if (!raw) return
+      const saved = JSON.parse(raw) as { token?: string; robots?: CloudRobot[]; at?: number }
+      if (!saved.token || !saved.robots?.length || Date.now() - (saved.at ?? 0) > CLOUD_SESSION_MS) {
+        localStorage.removeItem(STORE.cloudSession)
+        return
+      }
+      setToken(saved.token)
+      setCloudRobots(saved.robots)
+      setPickedSerial(saved.robots[0].sn)
+      if (saved.robots[0].aesKey) setAesKey((k) => k || saved.robots![0].aesKey)
+    } catch {
+      /* an unreadable save is just ignored */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const signOut = () => {
+    localStorage.removeItem(STORE.cloudSession)
+    setToken('')
+    setCloudRobots(null)
+    setPickedSerial('')
+  }
   const [signingIn, setSigningIn] = useState(false)
 
   // Cloud method: look for the robot on the server's own network first and
@@ -132,6 +164,11 @@ export default function ConnectPanel() {
       if (body.robots?.length) {
         setPickedSerial(body.robots[0].sn)
         if (body.robots[0].aesKey && !aesKey) setAesKey(body.robots[0].aesKey)
+        try {
+          localStorage.setItem(STORE.cloudSession, JSON.stringify({ token: body.token, robots: body.robots, at: Date.now() }))
+        } catch {
+          /* storage full or blocked; the session just won't survive a reload */
+        }
         log(`Signed in. ${body.robots.length} robot(s) on this account.`)
       } else {
         setNote('Signed in, but no robots are bound to this account.')
@@ -335,6 +372,15 @@ export default function ConnectPanel() {
                   />
                   <span className="track" />
                 </label>
+                <button
+                  className="btn sm ghost"
+                  style={{ marginTop: 4 }}
+                  disabled={locked}
+                  title="Forget this sign-in on this browser"
+                  onClick={signOut}
+                >
+                  Sign out
+                </button>
               </div>
             )}
 

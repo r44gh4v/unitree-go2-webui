@@ -33,6 +33,14 @@ export function createApp() {
   const app = express()
   app.use(express.json({ limit: '4mb' }))
 
+  // Nothing under /api may ever be cached: it is all live state and
+  // credentials - session checks, TURN passwords, signaling exchanges. A
+  // cached copy of any of it is at best stale and at worst a security hole.
+  app.use('/api', (_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store')
+    next()
+  })
+
   // Optional password gate, for exposing the console beyond the local machine.
   // Set with WEBUI_PASSWORD=... or --password <value>. Registered before the API
   // routes so the gate covers all of them.

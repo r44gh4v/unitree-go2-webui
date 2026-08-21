@@ -118,11 +118,20 @@ async function portScan(timeoutMs) {
   return found
 }
 
+/** serial -> { ip, at }. A robot keeps its DHCP lease for far longer than
+ * this, so repeat connects skip the multicast wait; a miss is never cached,
+ * so an offline robot is re-probed every time. */
+const serialCache = new Map()
+const SERIAL_CACHE_MS = 5 * 60 * 1000
+
 /** Find the address of a robot by its serial number, or null if it does not answer. */
 export async function resolveSerial(serial, timeoutMs = 4000) {
   const wanted = String(serial).trim().toLowerCase()
+  const hitCached = serialCache.get(wanted)
+  if (hitCached && Date.now() - hitCached.at < SERIAL_CACHE_MS) return hitCached.ip
   const robots = await discoverRobots(timeoutMs)
   const hit = robots.find((r) => String(r.sn ?? '').trim().toLowerCase() === wanted)
+  if (hit?.ip) serialCache.set(wanted, { ip: hit.ip, at: Date.now() })
   return hit?.ip ?? null
 }
 
