@@ -81,6 +81,37 @@ export interface UploadProgress {
   total: number
 }
 
+/**
+ * Chunk a WAV as base64 and send each piece as its own audiohub request.
+ * The library upload and the megaphone differ only in api id and the fields
+ * that ride along with each chunk.
+ */
+async function sendInChunks(
+  conn: Go2Connection,
+  wav: Uint8Array,
+  apiId: number,
+  extraFields: (chunk: string, index: number, total: number) => Record<string, unknown>,
+  onProgress?: (p: UploadProgress) => void,
+): Promise<void> {
+  const b64 = bytesToBase64(wav)
+  const chunks: string[] = []
+  for (let i = 0; i < b64.length; i += CHUNK_CHARS) chunks.push(b64.slice(i, i + CHUNK_CHARS))
+
+  for (let i = 0; i < chunks.length; i++) {
+    const parameter = {
+      current_block_index: i + 1,
+      total_block_number: chunks.length,
+      block_content: chunks[i],
+      current_block_size: chunks[i].length,
+      ...extraFields(chunks[i], i, chunks.length),
+    }
+    await conn.request(TOPICS.AUDIO_HUB_REQ, apiId, JSON.stringify(parameter), 20000)
+    onProgress?.({ sent: i + 1, total: chunks.length })
+    // the robot needs a beat between chunks or it drops them
+    await new Promise((r) => setTimeout(r, 100))
+  }
+}
+
 /** Send a prepared WAV to the robot's audio library. */
 export async function uploadAudioFile(
   conn: Go2Connection,
@@ -89,48 +120,26 @@ export async function uploadAudioFile(
   onProgress?: (p: UploadProgress) => void,
 ): Promise<void> {
   const fileMd5 = md5(wav)
-  const b64 = bytesToBase64(wav)
-  const chunks: string[] = []
-  for (let i = 0; i < b64.length; i += CHUNK_CHARS) chunks.push(b64.slice(i, i + CHUNK_CHARS))
-
-  for (let i = 0; i < chunks.length; i++) {
-    const parameter = {
+  await sendInChunks(
+    conn,
+    wav,
+    AUDIO_API.UPLOAD_AUDIO_FILE,
+    () => ({
       file_name: name,
       file_type: 'wav',
       file_size: wav.length,
-      current_block_index: i + 1,
-      total_block_number: chunks.length,
-      block_content: chunks[i],
-      current_block_size: chunks[i].length,
       file_md5: fileMd5,
       create_time: Date.now(),
-    }
-    await conn.request(TOPICS.AUDIO_HUB_REQ, AUDIO_API.UPLOAD_AUDIO_FILE, JSON.stringify(parameter), 20000)
-    onProgress?.({ sent: i + 1, total: chunks.length })
-    // the robot needs a beat between chunks or it drops them
-    await new Promise((r) => setTimeout(r, 100))
-  }
+    }),
+    onProgress,
+  )
 }
 
 /** Push a WAV straight out of the speaker in megaphone mode. */
-export async function uploadMegaphone(
+export function uploadMegaphone(
   conn: Go2Connection,
   wav: Uint8Array,
   onProgress?: (p: UploadProgress) => void,
 ): Promise<void> {
-  const b64 = bytesToBase64(wav)
-  const chunks: string[] = []
-  for (let i = 0; i < b64.length; i += CHUNK_CHARS) chunks.push(b64.slice(i, i + CHUNK_CHARS))
-
-  for (let i = 0; i < chunks.length; i++) {
-    const parameter = {
-      current_block_size: chunks[i].length,
-      block_content: chunks[i],
-      current_block_index: i + 1,
-      total_block_number: chunks.length,
-    }
-    await conn.request(TOPICS.AUDIO_HUB_REQ, AUDIO_API.UPLOAD_MEGAPHONE, JSON.stringify(parameter), 20000)
-    onProgress?.({ sent: i + 1, total: chunks.length })
-    await new Promise((r) => setTimeout(r, 100))
-  }
+  return sendInChunks(conn, wav, AUDIO_API.UPLOAD_MEGAPHONE, () => ({}), onProgress)
 }

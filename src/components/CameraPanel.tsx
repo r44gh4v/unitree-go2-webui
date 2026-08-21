@@ -71,6 +71,7 @@ export default function CameraPanel() {
   const containerRef = useRef<HTMLDivElement>(null)
   const [muted, setMuted] = useState(true)
   const [capturing, setCapturing] = useState(false)
+  const [photoError, setPhotoError] = useState<string | null>(null)
 
   const connected = connState === 'connected'
   const showing = videoOn && !!stream
@@ -91,10 +92,12 @@ export default function CameraPanel() {
 
   const takePhoto = async () => {
     setCapturing(true)
+    setPhotoError(null)
     try {
       download(await conn.capturePhoto(), 'jpg')
       log('Photo saved.')
     } catch (e) {
+      setPhotoError((e as Error).message)
       log(`Photo failed: ${(e as Error).message}`)
     } finally {
       setCapturing(false)
@@ -152,6 +155,11 @@ export default function CameraPanel() {
 
         <div style={{ flex: 1 }} />
 
+        {photoError && (
+          <span className="note warn" role="alert" style={{ margin: 0 }}>
+            Photo failed: {photoError}
+          </span>
+        )}
         <button className="btn sm" disabled={!connected || capturing} onClick={takePhoto} title="Full-resolution still from the camera">
           <PhotoIcon size={15} />
           {capturing ? 'Taking…' : 'Photo'}

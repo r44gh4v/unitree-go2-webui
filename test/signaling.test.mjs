@@ -3,12 +3,8 @@ import crypto from 'node:crypto'
 import { startMockRobot } from './mockrobot.mjs'
 import { signalRobot } from '../server/signaling.mjs'
 
-let pass = 0, fail = 0
-const check = (name, got, want) => {
-  const ok = JSON.stringify(got) === JSON.stringify(want)
-  if (ok) { pass++; console.log(`  ok   ${name}`) }
-  else { fail++; console.log(`  FAIL ${name}\n       got  ${JSON.stringify(got)}\n       want ${JSON.stringify(want)}`) }
-}
+import { makeChecker } from './harness.mjs'
+const { check, finish } = makeChecker()
 
 const OFFER = { sdp: 'v=0\r\no=- 1 2 IN IP4 0.0.0.0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\n', type: 'offer' }
 
@@ -96,8 +92,7 @@ async function run() {
     check('no ports open reported clearly', threw.includes('No signaling port open'), true)
   }
 
-  console.log(`\n${pass} passed, ${fail} failed`)
-  process.exit(fail ? 1 : 0)
+  finish()
 }
 
 run().catch((e) => { console.error(e); process.exit(1) })

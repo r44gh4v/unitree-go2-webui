@@ -21,24 +21,25 @@ export default function DrivePanel() {
   const [euler, setEuler] = useState({ roll: 0, pitch: 0, yaw: 0 })
   const [avoidance, setAvoidance] = useState<boolean | null>(null)
 
-  // Read the current obstacle-avoidance state once connected.
+  // Read the current obstacle-avoidance state; reused by the recheck link
+  // when the first read fails and the state is unknown.
+  const readAvoidance = useCallback(async () => {
+    try {
+      const res = await conn.request(TOPICS.OBSTACLES_AVOID, OBSTACLES_AVOID_API.SWITCH_GET)
+      const a = unwrapResponse<{ enable: boolean }>(res)
+      if (typeof a?.enable === 'boolean') setAvoidance(a.enable)
+    } catch {
+      /* stays unknown; the toggle stays disabled and offers a recheck */
+    }
+  }, [conn])
+
   useEffect(() => {
     if (!connected) {
       setAvoidance(null)
       return
     }
-    let cancelled = false
-    conn
-      .request(TOPICS.OBSTACLES_AVOID, OBSTACLES_AVOID_API.SWITCH_GET)
-      .then((res) => {
-        const a = unwrapResponse<{ enable: boolean }>(res)
-        if (!cancelled && typeof a?.enable === 'boolean') setAvoidance(a.enable)
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [connected, conn])
+    void readAvoidance()
+  }, [connected, readAvoidance])
 
   const toggleAvoidance = async (next: boolean) => {
     try {
@@ -111,18 +112,31 @@ export default function DrivePanel() {
           style={{ marginTop: 8 }}
           title={
             avoidance === null
-              ? 'Obstacle avoidance state unknown'
+              ? 'The robot has not reported this state yet'
               : 'When on, the robot refuses drive commands that would hit something'
           }
         >
           <span className="toggle-label">
             <ShieldIcon size={15} />
             Obstacle avoidance
+            {connected && avoidance === null && (
+              <button
+                className="btn sm ghost"
+                style={{ padding: '0 6px' }}
+                title="The robot has not reported this state - ask it again"
+                onClick={(e) => {
+                  e.preventDefault()
+                  void readAvoidance()
+                }}
+              >
+                unknown - recheck
+              </button>
+            )}
           </span>
           <input
             type="checkbox"
             checked={!!avoidance}
-            disabled={!connected}
+            disabled={!connected || avoidance === null}
             onChange={(e) => void toggleAvoidance(e.target.checked)}
             style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
           />

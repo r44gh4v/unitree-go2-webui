@@ -40,6 +40,11 @@ export default function SystemPanel() {
   const connected = connState === 'connected'
 
   const [services, setServices] = useState<ServiceEntry[] | null>(null)
+  const [svcBusy, setSvcBusy] = useState<Record<string, boolean>>({})
+  const [svcError, setSvcError] = useState<string | null>(null)
+  // which traffic mode was last set from here; null until someone picks
+  const [trafficMode, setTrafficMode] = useState<'full' | 'saving' | null>(null)
+  const [trafficError, setTrafficError] = useState<string | null>(null)
   const [multiple, setMultiple] = useState<MultipleState | null>(null)
   const [selfTest, setSelfTest] = useState<unknown[]>([])
   const [lidarState, setLidarState] = useState<unknown>(null)
@@ -113,11 +118,27 @@ export default function SystemPanel() {
   }
 
   const toggleService = async (name: string, on: boolean) => {
+    setSvcBusy((b) => ({ ...b, [name]: true }))
+    setSvcError(null)
     try {
       await conn.request(TOPICS.ROBOT_STATE, ROBOT_STATE_API.SERVICE_SWITCH, { name, switch: on ? 1 : 0 })
       log(`${name} ${on ? 'started' : 'stopped'}`)
     } catch (e) {
+      setSvcError(`${name}: ${(e as Error).message}`)
       log(`${name}: ${(e as Error).message}`)
+    } finally {
+      setSvcBusy((b) => ({ ...b, [name]: false }))
+    }
+  }
+
+  const setTraffic = async (mode: 'full' | 'saving') => {
+    setTrafficError(null)
+    try {
+      await conn.disableTrafficSaving(mode === 'full')
+      setTrafficMode(mode)
+      log(mode === 'full' ? 'Traffic saving off - full-rate topics allowed.' : 'Traffic saving on - high-rate topics are throttled.')
+    } catch (e) {
+      setTrafficError((e as Error).message)
     }
   }
 
@@ -179,17 +200,22 @@ export default function SystemPanel() {
                   <button
                     className="btn sm ghost"
                     style={{ color: s.status ? 'var(--ok)' : 'var(--faint)' }}
-                    disabled={!!s.protect}
+                    disabled={!!s.protect || !!svcBusy[s.name]}
                     title={s.protect ? 'This service is protected and cannot be switched' : 'Start or stop'}
                     onClick={() => void toggleService(s.name, !s.status)}
                   >
-                    {s.status ? 'running' : 'stopped'}
+                    {svcBusy[s.name] ? 'switching…' : s.status ? 'running' : 'stopped'}
                   </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      )}
+      {svcError && (
+        <p className="note warn" role="alert">
+          {svcError}
+        </p>
       )}
       <p className="note">Protected services cannot be switched off. Stopping a motion service disables driving.</p>
 
@@ -257,30 +283,25 @@ export default function SystemPanel() {
       <p className="eyebrow">Link</p>
       <div className="btn-row">
         <button
-          className="btn sm"
+          className={`btn sm${trafficMode === 'full' ? ' on' : ''}`}
           title="Stream high-rate topics at full speed; needed before the lidar"
-          onClick={() =>
-            conn
-              .disableTrafficSaving(true)
-              .then(() => log('Traffic saving off - high-rate topics stream at full speed.'))
-              .catch((e) => log(`Traffic saving: ${(e as Error).message}`))
-          }
+          onClick={() => void setTraffic('full')}
         >
           Full bandwidth
         </button>
         <button
-          className="btn sm"
+          className={`btn sm${trafficMode === 'saving' ? ' on' : ''}`}
           title="Throttle high-rate topics to keep the video smooth"
-          onClick={() =>
-            conn
-              .disableTrafficSaving(false)
-              .then(() => log('Traffic saving on - high-rate topics are throttled.'))
-              .catch((e) => log(`Traffic saving: ${(e as Error).message}`))
-          }
+          onClick={() => void setTraffic('saving')}
         >
           Save bandwidth
         </button>
       </div>
+      {trafficError && (
+        <p className="note warn" role="alert">
+          Traffic saving: {trafficError}
+        </p>
+      )}
       <p className="note">Turn on full bandwidth before streaming the lidar; leave it saving otherwise.</p>
     </div>
   )

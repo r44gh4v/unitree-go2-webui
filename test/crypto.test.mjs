@@ -5,12 +5,8 @@ import {
   calcLocalPathEnding, decryptData1Legacy, decryptData1V3,
 } from '../server/crypto.mjs'
 
-let pass = 0, fail = 0
-const check = (name, got, want) => {
-  const ok = JSON.stringify(got) === JSON.stringify(want)
-  if (ok) { pass++; console.log(`  ok   ${name}`) }
-  else { fail++; console.log(`  FAIL ${name}\n       got  ${JSON.stringify(got)}\n       want ${JSON.stringify(want)}`) }
-}
+import { makeChecker } from './harness.mjs'
+const { check, finish } = makeChecker()
 
 // 1. AES key shape: 32 lowercase hex chars (used as 32 ASCII bytes = AES-256)
 const key = generateAesKey()
@@ -90,5 +86,4 @@ check('path ending zeros', calcLocalPathEnding('----------zAzAzAzAzA'), '00000')
   check('v3 rejects a wrong key', threw.includes('rejected'), true)
 }
 
-console.log(`\n${pass} passed, ${fail} failed`)
-process.exit(fail ? 1 : 0)
+finish()

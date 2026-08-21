@@ -136,7 +136,7 @@ button { font: inherit; color: inherit; }
   background: var(--line-strong);
   transition: background 0.12s, width 0.12s;
 }
-.gutter.vertical:hover::before, .gutter.vertical.dragging::before {
+.gutter.vertical.dragging::before {
   background: var(--salmon);
   height: calc(100% - 10px);
   margin-top: 0;
@@ -144,7 +144,7 @@ button { font: inherit; color: inherit; }
 }
 .gutter.vertical:focus-visible::before { background: var(--salmon); height: calc(100% - 10px); margin-top: 0; top: 5px; }
 .gutter.horizontal:focus-visible::before { background: var(--salmon); width: calc(100% - 10px); margin-left: 0; left: 5px; }
-.gutter.horizontal:hover::before, .gutter.horizontal.dragging::before {
+.gutter.horizontal.dragging::before {
   background: var(--salmon);
   width: calc(100% - 10px);
   margin-left: 0;

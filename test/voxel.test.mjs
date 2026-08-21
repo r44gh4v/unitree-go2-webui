@@ -13,18 +13,8 @@ const { lz4DecompressBlock, bitsToPoints, decodeVoxelMesh } = await import(
   'file://' + voxelPath.replace(/\\/g, '/')
 )
 
-let pass = 0
-let fail = 0
-const check = (name, got, want) => {
-  const ok = JSON.stringify(got) === JSON.stringify(want)
-  if (ok) {
-    pass++
-    console.log(`  ok   ${name}`)
-  } else {
-    fail++
-    console.log(`  FAIL ${name}\n       got  ${JSON.stringify(got)}\n       want ${JSON.stringify(want)}`)
-  }
-}
+import { makeChecker } from './harness.mjs'
+const { check, finish } = makeChecker()
 
 const s = (b) => Buffer.from(b).toString('latin1')
 
@@ -111,5 +101,4 @@ function lz4Literals(bytes) {
   check('mesh culls shared faces', [mesh2.voxelCount, mesh2.faceCount], [2, 10])
 }
 
-console.log(`\n${pass} passed, ${fail} failed`)
-process.exit(fail ? 1 : 0)
+finish()
