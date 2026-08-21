@@ -1,0 +1,24 @@
+# Deploys to Vercel on every push to main, authenticated by a token instead of
+# the GitHub integration - the Vercel account and the GitHub account stay
+# unlinked, and no CLI is ever run by a human. The first run creates the Vercel
+# project by itself; later runs deploy into it (matched by name within the
+# account the token belongs to). Fork PRs never see the secrets (GitHub
+# withholds them), so only pushes to this repo's main branch can deploy.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --global vercel
+      - run: vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
