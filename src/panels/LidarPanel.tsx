@@ -193,15 +193,17 @@ export default function LidarPanel() {
         {streaming ? 'Stop lidar' : 'Start lidar'}
       </button>
 
-      <div ref={mountRef} className="lidar-canvas" />
-
-      <p className="note" style={{ marginTop: 8 }}>
-        {stats
-          ? `${stats.voxels.toLocaleString()} voxels · ${stats.faces.toLocaleString()} faces · updated ${new Date(stats.ts).toLocaleTimeString()}`
-          : streaming
-            ? 'Waiting for the first frame…'
-            : 'Drag to orbit, scroll to zoom.'}
-      </p>
+      <div className="lidar-wrap">
+        <div ref={mountRef} className="lidar-canvas" />
+        {streaming && (
+          <span className="lidar-overlay tl">
+            {stats
+              ? `${stats.voxels.toLocaleString()} voxels · ${stats.faces.toLocaleString()} faces · ${new Date(stats.ts).toLocaleTimeString()}`
+              : 'Waiting for the first frame…'}
+          </span>
+        )}
+        <span className="lidar-overlay br">Drag to orbit, scroll to zoom.</span>
+      </div>
     </div>
   )
 }

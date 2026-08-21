@@ -922,14 +922,37 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: var(--faint); }
   display: flex;
   flex-direction: column;
 }
-.lidar-canvas {
-  width: 100%;
+.lidar-wrap {
+  position: relative;
   flex: 1;
   min-height: 220px;
+}
+.lidar-canvas {
+  position: absolute;
+  inset: 0;
   background: #2a1016;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
 }
+/* Corner chips over the dark viewport, same voice as the camera overlay:
+   live counts top-left, the controls hint bottom-right. */
+.lidar-overlay {
+  position: absolute;
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(42, 16, 22, 0.7);
+  border: 1px solid rgba(252, 236, 223, 0.25);
+  color: rgba(252, 236, 223, 0.85);
+  backdrop-filter: blur(3px);
+  pointer-events: none;
+  white-space: nowrap;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lidar-overlay.tl { top: 8px; left: 8px; }
+.lidar-overlay.br { bottom: 8px; right: 8px; }
 
 /* scrollbars */
 * { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
