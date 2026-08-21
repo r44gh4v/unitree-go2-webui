@@ -25,7 +25,7 @@ npm run dev
 ```
 
 That serves both the interface and the API on http://localhost:8080 with Vite in
-middleware mode, so source edits hot-reload in the open page — no rebuild, no
+middleware mode, so source edits hot-reload in the open page - no rebuild, no
 manual refresh.
 
 The console is open to anyone who can reach that port, which is fine on your own
@@ -42,17 +42,17 @@ three months. The server says which mode it started in.
 
 Four ways to reach the robot, picked at the top of the left panel:
 
-**Address** - the robot is on your Wi-Fi and you know its IP. Press *Scan* to
+**Address** (the *IP* tab) - the robot is on your Wi-Fi and you know its IP. Press *Scan* to
 sweep the network if you don't.
 
-**Serial number** - the robot is on your Wi-Fi. Its address is found for you by
+**Serial number** (*Serial*) - the robot is on your Wi-Fi. Its address is found for you by
 multicast. The serial is printed under the robot and shown in the phone app.
 
-**Robot hotspot** - join the Wi-Fi network named after the robot's serial number,
+**Robot hotspot** (*AP*) - join the Wi-Fi network named after the robot's serial number,
 then connect. The robot is always at 192.168.12.1 in this mode. Your laptop has
 no internet while joined to it.
 
-**Unitree account** - sign in with the same email and password you use in the
+**Unitree account** (*Cloud*) - sign in with the same email and password you use in the
 phone app. Your robots are listed by name and reachable from anywhere, relayed
 through Unitree's servers. This also fetches each robot's device key
 automatically and, being cloud-relayed, works across networks (a TURN server is
@@ -63,7 +63,7 @@ fetched and both sides meet there).
 Firmware 1.1.15 and newer encrypt the local handshake with a key tied to the
 robot's serial number. If a local connection fails with a message about the AES
 key, either sign in with your Unitree account once (which fills the key in), or
-paste it under *Show device key*. Older firmware ignores the field.
+paste it under *Device key*. Older firmware ignores the field.
 
 ### If the connection is refused
 
@@ -144,16 +144,18 @@ while you are watching the camera. The full list stays on the Status panel.
 The robot exposes different commands depending on which motion mode it is in.
 *Normal* covers walking and gestures. *AI* unlocks flips, the handstand, and the
 free gaits. *MCF* is the command set used by firmware 1.1.7 and newer. The
-Actions tab shows only what the selected mode supports; use *Read from robot* to
+Actions tab shows only what the selected mode supports; use *Read robot* to
 see which mode the robot thinks it is in.
 
 ### Camera
 
 The camera is one panel among several rather than the whole window; drag the
-divider under it if you want more or less of it. *Take photo* asks the camera for a full-resolution 720p still, which arrives as
-a JPEG split across several data-channel frames and is reassembled before it
-saves. *Save frame* grabs the current video frame instead, which is faster but
-lower quality.
+divider under it if you want more or less of it.
+
+*Photo* asks the camera for a full-resolution 720p still, which arrives as a
+JPEG split across several data-channel frames and is reassembled before it
+saves. The frame button beside it grabs the current video frame instead, which
+is faster but lower quality.
 
 ### Media
 
@@ -296,7 +298,7 @@ Konstantin Severov's [unitree_webrtc_connect](https://github.com/legion1581/unit
 and [unitree_ui](https://github.com/legion1581/unitree_ui) (both MIT) did the
 hard reverse-engineering this project stands on. Between them they document the
 encrypted signaling handshake, the data-channel wire format, the API id tables,
-and several surfaces that exist nowhere else in public — notably that the SLAM
+and several surfaces that exist nowhere else in public - notably that the SLAM
 module takes plain `module/action/arg` strings rather than API ids, which is
 what the Map tab is built on.
 

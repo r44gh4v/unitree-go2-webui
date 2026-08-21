@@ -130,7 +130,6 @@ export default function MediaPanel() {
             key={c}
             aria-label={c}
             title={c}
-            disabled={!connected}
             onClick={() => setColor(c)}
             style={{
               width: 26,
@@ -139,7 +138,6 @@ export default function MediaPanel() {
               background: VUI_COLOR_HEX[c],
               border: color === c ? '2px solid var(--accent)' : '1px solid var(--line-strong)',
               cursor: 'pointer',
-              opacity: connected ? 1 : 0.4,
             }}
           />
         ))}
@@ -337,8 +335,10 @@ export default function MediaPanel() {
           disabled={!connected}
           title="Route live audio straight to the speaker without storing it"
           onClick={async () => {
-            await audio(megaphone ? AUDIO_API.EXIT_MEGAPHONE : AUDIO_API.ENTER_MEGAPHONE, {}, 'Megaphone')
-            setMegaphone(!megaphone)
+            // audio() resolves undefined on failure - only flip the mode when
+            // the robot actually acknowledged the request.
+            const res = await audio(megaphone ? AUDIO_API.EXIT_MEGAPHONE : AUDIO_API.ENTER_MEGAPHONE, {}, 'Megaphone')
+            if (res !== undefined) setMegaphone(!megaphone)
           }}
         >
           <MegaphoneIcon size={14} />

@@ -49,11 +49,6 @@ export const TOPICS = {
   AUDIO_HUB_REQ: 'rt/api/audiohub/request',
   AUDIO_HUB_PLAY_STATE: 'rt/audiohub/player/state',
   GAS_SENSOR: 'rt/gas_sensor',
-  LIDAR_MAPPING_CMD: 'rt/uslam/client_command',
-  LIDAR_MAPPING_CLOUD_POINT: 'rt/uslam/frontend/cloud_world_ds',
-  LIDAR_MAPPING_ODOM: 'rt/uslam/frontend/odom',
-  LIDAR_LOCALIZATION_ODOM: 'rt/uslam/localization/odom',
-  LIDAR_NAVIGATION_GLOBAL_PATH: 'rt/uslam/navigation/global_path',
   MOTION_SWITCHER: 'rt/api/motion_switcher/request',
   ROBOT_STATE: 'rt/api/robot_state/request',
   GAS_SENSOR_REQ: 'rt/api/gas_sensor/request',
@@ -81,14 +76,6 @@ export const ROBOT_STATE_API = {
 } as const
 
 /** Services the robot runs, as named by the service switch API. */
-export const ROBOT_SERVICES = [
-  'sport_mode', 'advanced_sport', 'ai_sport', 'mcf', 'motion_switcher',
-  'basic_service', 'audio_hub', 'bashrunner', 'chat_go', 'robot_state',
-  'obstacles_avoid', 'utrack', 'unitree_lidar', 'unitree_lidar_slam',
-  'video_hub', 'voxel_height_mapping', 'vui_service', 'webrtc_bridge',
-  'net_switcher', 'programming_actuator', 'gesture_recognition', 'pet_go',
-]
-
 // ---- bashrunner ----
 
 export const BASHRUNNER_API = { RUN_SCRIPT: 1001 } as const
@@ -134,7 +121,7 @@ export const SUBSCRIBABLE_TOPICS: { topic: string; label: string; note: string }
   { topic: TOPICS.UWB_STATE, label: 'UWB state', note: 'ultra-wideband tracker, if fitted' },
   { topic: TOPICS.AUDIO_HUB_PLAY_STATE, label: 'Audio player state', note: 'what the speaker is playing' },
   { topic: TOPICS.GPT_FEEDBACK, label: 'GPT feedback', note: 'voice assistant flow events' },
-  { topic: TOPICS.LIDAR_LOCALIZATION_ODOM, label: 'SLAM odometry', note: 'requires the mapping service' },
+  { topic: TOPICS.USLAM_LOC_ODOM, label: 'SLAM odometry', note: 'requires the mapping service' },
 ]
 
 // ---- sport commands ----

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Go2Connection, unwrapResponse, type ApiResponse, type ConnectOptions, type ConnState, type TrafficEntry, type VoxelCloud } from '../lib/go2'
+import { Go2Connection, unwrapResponse, type ApiResponse, type ConnectOptions, type ConnState, type TrafficEntry } from '../lib/go2'
 import {
   DATA_CHANNEL_TYPE,
   MOTION_SWITCHER_API,
@@ -340,4 +340,3 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>
 }
 
-export type { VoxelCloud }

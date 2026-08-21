@@ -161,7 +161,7 @@ export default function DrivePanel() {
             title="The robot's own gait pace: slow, normal, or fast"
             onChange={(e) => setSpeedLevel(Number(e.target.value))}
             onPointerUp={() => cmd(ids.SpeedLevel, { data: speedLevel }, 'Pace')}
-            onKeyUp={() => cmd(SPORT_CMD.SpeedLevel, { data: speedLevel }, 'Pace')}
+            onKeyUp={() => cmd(ids.SpeedLevel, { data: speedLevel }, 'Pace')}
           />
           <span className="val">{speedLevel > 0 ? 'fast' : speedLevel < 0 ? 'slow' : 'normal'}</span>
         </div>
@@ -206,9 +206,9 @@ export default function DrivePanel() {
       </div>
 
       <div className="section">
-        <p className="eyebrow">Simulated Remote</p>
+        <p className="eyebrow">Simulated remote</p>
         <p className="note">
-          Obstacle avoidance filters these
+          Obstacle avoidance filters these.
         </p>
         <RemoteControl />
       </div>

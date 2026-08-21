@@ -67,7 +67,7 @@ function multicastScan(timeoutMs) {
   })
 }
 
-function probePort(ip, port, timeoutMs) {
+export function probePort(ip, port, timeoutMs) {
   return new Promise((resolve) => {
     const socket = new net.Socket()
     const done = (ok) => {

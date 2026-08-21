@@ -28,7 +28,7 @@ const GROUPS: CommandGroup[] = [
     ],
   },
   {
-    label: 'Localization',
+    label: 'Localisation',
     note: 'Works out where the robot is on the saved map. Give it a starting guess if it cannot find itself.',
     items: [
       { cmd: 'localization/start', label: 'Start' },
@@ -177,7 +177,7 @@ export default function MappingPanel() {
     try {
       const files = await conn.downloadMap((f) => setDlStatus(`Fetching ${f}…`))
       if (!files.length) {
-        setDlStatus('The robot returned no map data — build a map first.')
+        setDlStatus('The robot returned no map data - build a map first.')
         return
       }
       files.forEach((f) => saveBytes(f.name, f.bytes))
@@ -225,8 +225,8 @@ export default function MappingPanel() {
       <div style={{ marginBottom: 14 }}>
         <p className="eyebrow">Save the map</p>
         <p className="note">
-          Pulls the built map off the robot — the point cloud (map.pcd) plus the occupancy grid and metadata
-          (map.pgm, map.txt) when present — and saves them to your computer. Build or load a map first.
+          Pulls the built map off the robot - the point cloud (map.pcd) plus the occupancy grid and metadata
+          (map.pgm, map.txt) when present - and saves them to your computer. Build or load a map first.
         </p>
         <button className="btn sm block" title="Download map.pcd, map.pgm and map.txt from the robot" onClick={downloadMap} disabled={downloading}>
           {downloading ? 'Downloading…' : 'Download map'}

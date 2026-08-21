@@ -31,6 +31,23 @@ export default function Split({ direction = 'vertical', initial, min = 140, max 
     if (storageKey) localStorage.setItem(storageKey, String(size))
   }, [size, storageKey])
 
+  // The drag path clamps against the container, but a saved size can exceed a
+  // smaller window on load or resize - re-clamp whenever the container's own
+  // extent changes so the second pane always keeps its minimum.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const clamp = () => {
+      const rect = el.getBoundingClientRect()
+      const limit = (vertical ? rect.width : rect.height) - min
+      if (limit > 0) setSize((s) => Math.min(s, Math.max(min, limit)))
+    }
+    clamp()
+    const ro = new ResizeObserver(clamp)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [vertical, min])
+
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault()
     setDragging(true)
@@ -96,6 +113,8 @@ export default function Split({ direction = 'vertical', initial, min = 140, max 
         role="separator"
         aria-orientation={vertical ? 'vertical' : 'horizontal'}
         aria-valuenow={Math.round(size)}
+        aria-valuemin={min}
+        aria-valuemax={max}
         tabIndex={0}
         onPointerDown={onPointerDown}
         onDoubleClick={() => setSize(initial)}

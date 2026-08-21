@@ -5,13 +5,10 @@ export interface JoystickProps {
   size?: number
   /** normalized vector, each axis in [-1, 1]; y is +up */
   onChange: (x: number, y: number) => void
-  onRelease?: () => void
-  /** externally driven position (e.g. keyboard), shown when not dragging */
-  shadow?: { x: number; y: number } | null
   disabled?: boolean
 }
 
-export default function Joystick({ label, size = 132, onChange, onRelease, shadow, disabled }: JoystickProps) {
+export default function Joystick({ label, size = 132, onChange, disabled }: JoystickProps) {
   const padRef = useRef<HTMLDivElement>(null)
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null)
   const pointerId = useRef<number | null>(null)
@@ -35,8 +32,7 @@ export default function Joystick({ label, size = 132, onChange, onRelease, shado
   const onDown = (e: React.PointerEvent) => {
     if (disabled) return
     pointerId.current = e.pointerId
-    ;(e.target as HTMLElement).closest('.pad')
-    padRef.current?.setPointerCapture(e.pointerId)
+        padRef.current?.setPointerCapture(e.pointerId)
     const v = compute(e)
     setDrag(v)
     onChange(v.x, v.y)
@@ -56,7 +52,6 @@ export default function Joystick({ label, size = 132, onChange, onRelease, shado
       pointerId.current = null
       setDrag(null)
       onChange(0, 0)
-      onRelease?.()
     }
     pad.addEventListener('pointermove', move)
     pad.addEventListener('pointerup', up)
@@ -66,9 +61,9 @@ export default function Joystick({ label, size = 132, onChange, onRelease, shado
       pad.removeEventListener('pointerup', up)
       pad.removeEventListener('pointercancel', up)
     }
-  }, [compute, onChange, onRelease])
+  }, [compute, onChange])
 
-  const pos = drag ?? shadow ?? { x: 0, y: 0 }
+  const pos = drag ?? { x: 0, y: 0 }
   // nub travels up to 33% of pad radius from center
   const tx = pos.x * size * 0.33
   const ty = -pos.y * size * 0.33

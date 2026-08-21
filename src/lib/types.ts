@@ -109,11 +109,3 @@ export const MODE_NAMES: Record<number, string> = {
   13: 'front pounce',
 }
 
-export const GAIT_NAMES: Record<number, string> = {
-  0: 'idle',
-  1: 'trot',
-  2: 'run',
-  3: 'climb stairs',
-  4: 'forward down stairs',
-  9: 'adjust',
-}

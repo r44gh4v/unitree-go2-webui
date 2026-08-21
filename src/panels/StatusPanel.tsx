@@ -67,7 +67,7 @@ export default function StatusPanel() {
             label="Hottest joint"
             value={hottest ? String(Math.round(hottest)) : '-'}
             unit="°C"
-            meter={hottest ? { pct: (hottest / 100) * 100, tone: hottest > 80 ? 'bad' : hottest > 65 ? 'warn' : undefined } : undefined}
+            meter={hottest ? { pct: hottest, tone: hottest > 80 ? 'bad' : hottest > 65 ? 'warn' : undefined } : undefined}
           />
         </div>
       </div>

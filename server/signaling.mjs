@@ -3,7 +3,7 @@
 //   :9991 /con_notify + /con_ing_<ending>  - newer firmware, encrypted
 //   :8081 /offer                           - legacy Go2 (pre 1.1.11), plaintext
 
-import net from 'node:net'
+import { probePort } from './discovery.mjs'
 import {
   aesDecrypt,
   aesEncrypt,
@@ -14,21 +14,6 @@ import {
   loadPublicKey,
   rsaEncrypt,
 } from './crypto.mjs'
-
-function probeTcpPort(ip, port, timeoutMs = 1500) {
-  return new Promise((resolve) => {
-    const socket = new net.Socket()
-    const done = (result) => {
-      socket.destroy()
-      resolve(result)
-    }
-    socket.setTimeout(timeoutMs)
-    socket.once('connect', () => done(true))
-    socket.once('timeout', () => done(false))
-    socket.once('error', () => done(false))
-    socket.connect(port, ip)
-  })
-}
 
 async function post(url, body, headers, timeoutMs = 8000) {
   const ctrl = new AbortController()
@@ -94,10 +79,10 @@ export async function signalRobot(ip, sdp, token = '', aes128Key = '', accessPoi
   })
 
   let answerText
-  if (await probeTcpPort(ip, 9991)) {
+  if (await probePort(ip, 9991, 1500)) {
     console.log(`[signaling] ${ip}: con_notify flow (:9991)`)
     answerText = await signalNew(ip, offerJson, aes128Key)
-  } else if (await probeTcpPort(ip, 8081)) {
+  } else if (await probePort(ip, 8081, 1500)) {
     console.log(`[signaling] ${ip}: legacy offer flow (:8081)`)
     answerText = await signalOld(ip, offerJson)
   } else {

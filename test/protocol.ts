@@ -153,7 +153,7 @@ async function run() {
   const conn = new Go2Connection()
 
   // Wire two peers together, bypassing the signaling server: this test is about
-  // the data channel, not the handshake (which signaltest.mjs covers).
+  // the data channel, not the handshake (which signaling.test.mjs covers).
   const clientPc = new RTCPeerConnection()
   const robotPc = new RTCPeerConnection()
   // Rewrite mDNS ".local" host candidates to loopback so the test runs even
@@ -352,10 +352,12 @@ async function run() {
     true,
   )
   await waitFor(() => voxelSeen.length > 0, 3000, 'voxel frame')
-  const cloud = voxelSeen[0] as { count: number; positions: Float32Array; resolution: number }
-  check('voxel decoded one point', cloud.count, 1)
-  check('voxel position applies origin', Array.from(cloud.positions).map((v) => +v.toFixed(3)), [1, 2, 3])
-  check('voxel resolution passed through', cloud.resolution, 0.05)
+  const mesh = voxelSeen[0] as { voxelCount: number; faceCount: number; positions: Float32Array; resolution: number; origin: number[] }
+  check('voxel decoded one voxel', mesh.voxelCount, 1)
+  check('voxel mesh has six faces', mesh.faceCount, 6)
+  // first vertex of the first face sits on the voxel's corner: origin + corner * resolution
+  check('voxel mesh applies origin', Array.from(mesh.positions.slice(0, 3)).map((v) => +v.toFixed(3)), [1, 2.05, 3])
+  check('voxel resolution passed through', mesh.resolution, 0.05)
   uv()
 
   // --- a chunked binary reply reassembles into one payload (camera stills) ---

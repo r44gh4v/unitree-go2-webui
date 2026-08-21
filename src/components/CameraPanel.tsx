@@ -7,9 +7,8 @@ import {
 } from './Icons'
 
 /** What the central view shows before the camera is up: the connection's own state. */
-function CameraStatus({ connected, showing }: { connected: boolean; showing: boolean }) {
+function CameraStatus({ connected, starting }: { connected: boolean; starting: boolean }) {
   const { connState, connError, ip, disconnect, retry } = useRobot()
-  if (showing) return null
 
   if (connState === 'connecting' || connState === 'validating') {
     return (
@@ -34,6 +33,16 @@ function CameraStatus({ connected, showing }: { connected: boolean; showing: boo
             Try again
           </button>
         )}
+      </div>
+    )
+  }
+
+  if (connected && starting) {
+    return (
+      <div className="placeholder">
+        <div className="spinner" />
+        <b>Starting camera</b>
+        Waiting for the robot's video track.
       </div>
     )
   }
@@ -110,7 +119,7 @@ export default function CameraPanel() {
       <div className="camera" ref={containerRef}>
         <video ref={videoRef} autoPlay playsInline muted={muted} style={{ display: showing ? 'block' : 'none' }} />
 
-        {!showing && <CameraStatus connected={connected} showing={showing} />}
+        {!showing && <CameraStatus connected={connected} starting={videoOn && !stream} />}
 
         {showing && (
           <div className="overlay">

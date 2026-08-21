@@ -3,7 +3,6 @@
 import http from 'node:http'
 import crypto from 'node:crypto'
 
-const STRARR = ['A','B','C','D','E','F','G','H','I','J']
 
 function pkcs7Unpad(buf) {
   const n = buf[buf.length - 1]

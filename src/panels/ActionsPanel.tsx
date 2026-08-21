@@ -49,7 +49,7 @@ export default function ActionsPanel() {
   return (
     <div className="section">
       <div
-        className={armed ? 'hazard' : undefined}
+        
         style={{
           border: `1px solid ${armed ? 'var(--warn)' : 'var(--line)'}`,
           borderRadius: 'var(--radius)',
@@ -99,7 +99,7 @@ export default function ActionsPanel() {
                     {pending[a.name] && <span className="action-busy" />}
                     {icon && <span className="action-icon" dangerouslySetInnerHTML={{ __html: icon }} />}
                     <span className="action-label">{a.label}</span>
-                    {a.risky && <span className="badge danger">!</span>}
+                    {a.risky && <span className="badge">!</span>}
                   </button>
                 )
               })}

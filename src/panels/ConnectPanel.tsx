@@ -146,7 +146,7 @@ export default function ConnectPanel() {
                     : !!token && !!pickedSerial
 
     const methodLabel = METHODS.find((m) => m.value === method)?.label ?? method
-    const where = ip || (method === 'cloud' ? pickedSerial : method === 'serial' ? serial : ip)
+    const where = method === 'cloud' ? pickedSerial : method === 'serial' ? serial : ip
 
     // The form is only useful when you can act on it: hide it while a link is up
     // or being established, keep it visible when idle or after a failure.
@@ -410,10 +410,10 @@ export default function ConnectPanel() {
                         </button>
                     ))}
                 </div>
-                <p className="note">Picks which command set the Actions tab offers</p>
+                <p className="note">Picks which command set the Actions tab offers.</p>
 
                 <div className="btn-row">
-                    <button className="btn sm" disabled={!connected} title="Ask the robot which mode it is actually in" onClick={() => void refreshMotionMode()}>
+                    <button className="btn sm" disabled={!connected} title="Ask the robot which mode it is actually in" onClick={() => void refreshMotionMode().catch((e) => log(`Mode read failed: ${(e as Error).message}`))}>
                         Read robot
                     </button>
                     {MOTION_MODE_OPTIONS.map((m) => (

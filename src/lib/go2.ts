@@ -9,7 +9,7 @@
 import { md5 } from 'js-md5'
 import { DATA_CHANNEL_TYPE, TOPICS } from './constants'
 import { lastServerInfo } from './serverInfo'
-import { decodeVoxelMesh, type VoxelCloud, type VoxelMesh } from './voxel'
+import { decodeVoxelMesh, type VoxelMesh } from './voxel'
 
 export type ConnState = 'idle' | 'connecting' | 'validating' | 'connected' | 'error' | 'closed'
 
@@ -851,4 +851,3 @@ export class Go2Connection extends EventTarget {
   }
 }
 
-export type { VoxelCloud, VoxelMesh }

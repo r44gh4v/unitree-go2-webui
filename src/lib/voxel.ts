@@ -12,15 +12,6 @@ export interface VoxelMeta {
   src_size: number
 }
 
-export interface VoxelCloud {
-  /** flat xyz triples in metres */
-  positions: Float32Array
-  count: number
-  resolution: number
-  origin: number[]
-  ts: number
-}
-
 export interface VoxelMesh {
   /** flat xyz triples in metres, 4 vertices per surviving face */
   positions: Float32Array
@@ -117,18 +108,6 @@ export function bitsToPoints(buf: Uint8Array, origin: number[], resolution: numb
   }
 
   return out
-}
-
-export function decodeVoxelFrame(payload: Uint8Array, meta: VoxelMeta): VoxelCloud {
-  const raw = lz4DecompressBlock(payload, meta.src_size)
-  const positions = bitsToPoints(raw, meta.origin ?? [0, 0, 0], meta.resolution ?? 0.05)
-  return {
-    positions,
-    count: positions.length / 3,
-    resolution: meta.resolution ?? 0.05,
-    origin: meta.origin ?? [0, 0, 0],
-    ts: Date.now(),
-  }
 }
 
 // The grid is 128 x 128 in x/y; z depth comes from the frame size.

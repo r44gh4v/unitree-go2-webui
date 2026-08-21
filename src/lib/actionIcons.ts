@@ -21,7 +21,7 @@ const ACTION_ICON: Record<string, string> = {
   BalanceStand: 'mode_stand',
   StandUp: 'mode_stand',
   StandDown: 'lieDown',
-  RecoveryStand: 'mode_unlock' in byFile ? 'mode_unlock' : 'mode_stand',
+  RecoveryStand: 'mode_stand',
   Sit: 'sitDown',
   Damp: 'mode_damping',
   StopMove: 'mode_locking',

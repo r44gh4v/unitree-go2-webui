@@ -139,7 +139,3 @@ export const API_CATALOG: ApiEntry[] = [
 ]
 
 /** SLAM is driven by plain strings, not api ids, so it is listed separately. */
-export const SLAM_NOTE =
-  'Mapping and navigation use plain text commands on rt/uslam/client_command. Use the Map tab.'
-
-export const API_GROUPS = [...new Set(API_CATALOG.map((e) => e.group))]
