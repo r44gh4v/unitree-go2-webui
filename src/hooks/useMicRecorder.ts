@@ -71,7 +71,7 @@ export function useMicRecorder(): MicRecorder {
         const blob = new Blob(chunks.current, { type })
         teardown()
         if (elapsed < MIN_MS) {
-          setError('Too short — hold it for at least half a second.')
+          setError('Too short - hold it for at least half a second.')
           return
         }
         const ext = (type.split('/')[1] || 'webm').split(';')[0]

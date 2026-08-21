@@ -811,7 +811,7 @@ export class Go2Connection extends EventTarget {
       const reqUuid = `req_${genId()}`
       const timer = setTimeout(() => {
         this.fileDownloads.delete(reqUuid)
-        reject(new Error(`No file within ${timeoutMs}ms — has a map been built?`))
+        reject(new Error(`No file within ${timeoutMs}ms - has a map been built?`))
       }, timeoutMs)
       this.fileDownloads.set(reqUuid, { chunks: [], resolve, reject, timer })
       this.sendRaw({
