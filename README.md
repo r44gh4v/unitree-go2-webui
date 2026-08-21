@@ -68,9 +68,7 @@ with internet.
 
 Deploy your own free copy to Vercel in one click:
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FYOUR_GITHUB_USERNAME%2Funitree_go2_webui&env=WEBUI_PASSWORD&envDescription=Password%20that%20locks%20your%20console)
-
-<!-- After publishing, replace YOUR_GITHUB_USERNAME above with the repo's owner. -->
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fr44gh4v%2Funitree-go2-webui&env=WEBUI_PASSWORD&envDescription=Password%20that%20locks%20your%20console)
 
 Or from the command line (the repo already carries the config):
 
