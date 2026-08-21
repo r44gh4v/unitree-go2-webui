@@ -92,7 +92,7 @@ export default function ActionsPanel() {
                   <button
                     key={a.name}
                     className={`btn action${on ? ' primary' : ''}`}
-                    disabled={!connected || blocked}
+                    disabled={!connected || blocked || !!pending[a.name]}
                     title={describe(a, apiIdFor(a), blocked, !!on)}
                     onClick={() => fire(a.name)}
                   >
