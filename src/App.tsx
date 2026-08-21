@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import AuthGate from './components/AuthGate'
 import { RobotProvider, useRobot } from './state/RobotContext'
 import Split from './components/Split'
@@ -9,10 +9,14 @@ import DrivePanel from './panels/DrivePanel'
 import StatusPanel from './panels/StatusPanel'
 import ActionsPanel from './panels/ActionsPanel'
 import MediaPanel from './panels/MediaPanel'
-import LidarPanel from './panels/LidarPanel'
 import MappingPanel from './panels/MappingPanel'
 import SystemPanel from './panels/SystemPanel'
 import ConsolePanel from './panels/ConsolePanel'
+
+// The lidar view carries three.js, which is most of the interface's weight and
+// is useless until someone opens that tab. Loading it on demand keeps it out of
+// the first download entirely.
+const LidarPanel = lazy(() => import('./panels/LidarPanel'))
 
 const TABS = [
   { key: 'actions', label: 'Actions', title: 'Postures, gestures, gaits, and dynamic moves', Panel: ActionsPanel },
@@ -168,7 +172,9 @@ function Workspace() {
                 ))}
               </nav>
               <div className="scroll">
-                <Active />
+                <Suspense fallback={<p className="note" style={{ padding: 14 }}>Loading…</p>}>
+                  <Active />
+                </Suspense>
               </div>
             </div>
           </Split>

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { refreshServerInfo } from '../lib/serverInfo'
 import { ShieldIcon } from './Icons'
 
 /**
@@ -17,23 +18,25 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
+  const lastCheck = useRef(0)
+
   const check = useCallback(() => {
-    fetch('/api/auth')
-      .then((r) => r.json())
-      .then((d: { required?: boolean; authed?: boolean; misconfigured?: boolean }) => {
-        setState(d.misconfigured ? 'misconfigured' : d.required && !d.authed ? 'locked' : 'open')
-      })
-      .catch(() => {
-        // The server is unreachable; let the app load so its own connection
-        // errors can say so, rather than trapping the user on a lock screen.
-        setState((s) => (s === 'checking' ? 'open' : s))
-      })
+    lastCheck.current = Date.now()
+    // Shared with the connection panel, so the page probes the server once.
+    refreshServerInfo().then((d) => {
+      setState(d.misconfigured ? 'misconfigured' : d.required && !d.authed ? 'locked' : 'open')
+    })
   }, [])
 
   useEffect(() => {
     check()
-    window.addEventListener('focus', check)
-    return () => window.removeEventListener('focus', check)
+    // Sessions last months, so re-checking on every alt-tab would be pure
+    // chatter; a quarter-hour is soon enough to catch an expired one.
+    const onFocus = () => {
+      if (Date.now() - lastCheck.current > 15 * 60 * 1000) check()
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
   }, [check])
 
   const submit = async (e: FormEvent) => {
