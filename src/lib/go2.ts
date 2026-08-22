@@ -38,10 +38,15 @@ export interface ApiResponse {
   info?: string | Record<string, unknown>
 }
 
+/** Human-readable form of a robot status code. */
+export function describeStatus(code: number): string {
+  return API_STATUS_CODES[code] ? `${API_STATUS_CODES[code]} (${code})` : `Robot refused the command (status ${code})`
+}
+
 /** Parsed form of a request/response pair. Throws if the robot reported failure. */
 export function unwrapResponse<T = unknown>(res: ApiResponse): T {
   const code = res.data?.header?.status?.code
-  if (code !== undefined && code !== 0) throw new Error(API_STATUS_CODES[code] ?? `Robot returned status ${code}`)
+  if (code !== undefined && code !== 0) throw new Error(describeStatus(code))
   const raw = res.data?.data
   if (raw === undefined || raw === '') return undefined as T
   if (typeof raw !== 'string') return raw as T
@@ -695,7 +700,21 @@ export class Go2Connection extends EventTarget {
         this.pending.delete(id)
         reject(new Error(`No reply to api ${apiId} on ${topic} within ${timeoutMs}ms`))
       }, timeoutMs)
-      this.pending.set(id, { resolve, reject, timer })
+      // The robot answers a refused command with a non-zero status code. Reject
+      // on those so a rejection can never be reported to the operator as
+      // success - the reason a working button looked like a dead one.
+      this.pending.set(id, {
+        resolve: (msg) => {
+          const code = msg.data?.header?.status?.code
+          if (typeof code === 'number' && code !== 0) {
+            reject(new Error(describeStatus(code)))
+            return
+          }
+          resolve(msg)
+        },
+        reject,
+        timer,
+      })
     })
   }
 

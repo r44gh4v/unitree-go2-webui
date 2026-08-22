@@ -234,7 +234,18 @@ export const SPORT_CMD_MCF = {
   SwitchAvoidMode: 2058,
 } as const
 
-export type MotionMode = 'normal' | 'ai' | 'mcf'
+/**
+ * Which command set the robot's motion service speaks. This is NOT a menu of
+ * modes to choose from: 'normal', 'ai' and 'advanced' are the three legacy
+ * services, and 'mcf' is the single unified service that replaced all three on
+ * firmware 1.1.7 and newer. The robot tells us which one it runs; the only
+ * thing that is switchable is between the legacy three, and only on firmware
+ * old enough to still have them.
+ */
+export type MotionMode = 'normal' | 'ai' | 'advanced' | 'mcf'
+
+/** The legacy services a robot can be switched between; MCF is never one. */
+export const SWITCHABLE_MODES = ['normal', 'ai', 'advanced'] as const
 
 export interface ActionSpec {
   name: string
@@ -261,47 +272,41 @@ export const ACTIONS: ActionSpec[] = [
   { name: 'RiseSit', label: 'Rise from sit', ids: { normal: 1010, mcf: 1010 }, group: 'posture', note: 'Stands back up out of a sit.' },
   { name: 'Damp', label: 'Damp', ids: { normal: 1001, ai: 1001, mcf: 1001 }, group: 'posture', note: 'Motors go compliant and the robot settles to the ground.' },
   { name: 'StopMove', label: 'Stop', ids: { normal: 1003, ai: 1003, mcf: 1003 }, group: 'posture', note: 'Halts locomotion. Also exits Pose mode.' },
-  { name: 'Pose', label: 'Pose mode', ids: { normal: 1028, mcf: 1028 }, group: 'posture', note: 'Body follows the right stick. Stop exits.' },
+  { name: 'Pose', label: 'Pose mode', ids: { normal: 1028, mcf: 1028 }, toggle: true, group: 'posture', note: 'Body follows the right stick. Stop exits.' },
 
   // gestures
   { name: 'Hello', label: 'Wave hello', ids: { normal: 1016, ai: 1016, mcf: 1016 }, group: 'gesture', note: 'Lifts a front paw and waves.' },
   { name: 'Stretch', label: 'Stretch', ids: { normal: 1017, mcf: 1017 }, group: 'gesture', note: 'Stretches front then back, like waking up.' },
-  { name: 'Content', label: 'Happy', ids: { normal: 1020, mcf: 1020 }, group: 'gesture', note: 'A short happy wiggle on the spot.' },
-  { name: 'WiggleHips', label: 'Wiggle hips', ids: { normal: 1033 }, group: 'gesture', note: 'Sways the hips from side to side.' },
   { name: 'FingerHeart', label: 'Finger heart', ids: { normal: 1036, mcf: 1036 }, group: 'gesture', note: 'Makes a heart shape with the front paws.' },
-  { name: 'Trigger', label: 'Finger gun', ids: { normal: 1012 }, group: 'gesture', note: 'Points a finger-gun pose. Some firmware ignores it.' },
   { name: 'Scrape', label: 'Scrape', ids: { normal: 1029, mcf: 1029 }, group: 'gesture', note: 'Paws at the ground with a front leg.' },
   { name: 'Dance1', label: 'Dance 1', ids: { normal: 1022, mcf: 1022 }, group: 'gesture', risky: true, note: 'A short choreographed dance routine.' },
   { name: 'Dance2', label: 'Dance 2', ids: { normal: 1023, mcf: 1023 }, group: 'gesture', risky: true, note: 'A second, livelier dance routine.' },
   { name: 'Wallow', label: 'Roll over', ids: { normal: 1021, mcf: 1021 }, group: 'gesture', risky: true, note: 'Rolls onto its back and rights itself. Needs clear floor space.' },
 
   // gaits
-  { name: 'EconomicGait', label: 'Economic gait', ids: { normal: 1035, mcf: 1063 }, group: 'gait', note: 'Energy-saving walk that stretches the battery.' },
+  { name: 'EconomicGait', label: 'Economic gait', ids: { normal: 1035, mcf: 1063 }, toggle: true, group: 'gait', note: 'Energy-saving walk that stretches the battery.' },
   { name: 'ContinuousGait', label: 'Continuous gait', ids: { normal: 1019, mcf: 1019}, toggle: true, group: 'gait', note: 'Keeps stepping in place instead of standing still.' },
-  { name: 'StaticWalk', label: 'Static walk', ids: { mcf: 1061 }, group: 'gait', note: 'Slow, deliberate walk keeping three feet down.' },
-  { name: 'TrotRun', label: 'Trot run', ids: { mcf: 1062 }, group: 'gait', note: 'Faster running trot.' },
+  { name: 'StaticWalk', label: 'Static walk', ids: { mcf: 1061 }, toggle: true, group: 'gait', note: 'Slow, deliberate walk keeping three feet down.' },
+  { name: 'TrotRun', label: 'Trot run', ids: { mcf: 1062 }, toggle: true, group: 'gait', note: 'Faster running trot.' },
   { name: 'ClassicWalk', label: 'Classic walk', ids: { mcf: 2049}, toggle: true, group: 'gait', note: 'The standard everyday walking gait.' },
-  { name: 'FreeWalk', label: 'Free walk', ids: { ai: 1045, mcf: 2045}, toggle: true, group: 'gait', note: 'Picks its own footing over uneven ground.' },
-  { name: 'WalkStair', label: 'Stair mode', ids: { ai: 1049, mcf: 1049 }, toggle: true, group: 'gait', note: 'Climbing mode for stairs and tall obstacles. Approach steps straight on.' },
-  { name: 'GaitStairsUp', label: 'Stairs up gait', ids: { normal: 1011, mcf: 1011 }, parameter: { data: 3 }, group: 'gait', note: 'Classic stair gait, facing up the steps.' },
-  { name: 'GaitStairsDown', label: 'Stairs down gait', ids: { normal: 1011, mcf: 1011 }, parameter: { data: 4 }, group: 'gait', note: 'Classic stair gait for walking back down, tail first.' },
-  { name: 'CrossStep', label: 'Cross step', ids: { ai: 1302, mcf: 2051}, toggle: true, group: 'gait', risky: true, note: 'Crosses the legs while stepping sideways.' },
-  { name: 'MoonWalk', label: 'Moon walk', ids: { ai: 1305}, toggle: true, group: 'gait', risky: true, note: 'Slides backwards in a moonwalk.' },
-  { name: 'OnesidedStep', label: 'One-sided step', ids: { ai: 1303}, toggle: true, group: 'gait', risky: true, note: 'Steps using the legs on one side only.' },
-  { name: 'Bound', label: 'Bound', ids: { ai: 1304}, toggle: true, group: 'gait', risky: true, note: 'Hops with the front and back legs paired.' },
+  { name: 'FreeWalk', label: 'Free walk', ids: { mcf: 2045 }, toggle: true, group: 'gait', note: 'Picks its own footing over uneven ground.' },
+  { name: 'WalkStair', label: 'Stair mode', ids: { mcf: 1049 }, toggle: true, group: 'gait', note: 'Climbing mode for stairs and tall obstacles. Approach steps straight on.' },
+  { name: 'CrossStep', label: 'Cross step', ids: { advanced: 1302, mcf: 2051 }, toggle: true, group: 'gait', risky: true, note: 'Crosses the legs while stepping sideways.' },
+  { name: 'OnesidedStep', label: 'One-sided step', ids: { advanced: 1303 }, toggle: true, group: 'gait', risky: true, note: 'Steps using the legs on one side only.' },
+  { name: 'Bound', label: 'Bound', ids: { advanced: 1304 }, toggle: true, group: 'gait', risky: true, note: 'Hops with the front and back legs paired.' },
   { name: 'RageMode', label: 'Rage mode', ids: { mcf: 2059 }, toggle: true, group: 'gait', risky: true, note: 'Fast, aggressive running mode. Needs a lot of open space.' },
   { name: 'FreeBound', label: 'Free bound', ids: { mcf: 2046}, toggle: true, group: 'gait', risky: true, note: 'Bounding gait that adapts to rough ground.' },
-  { name: 'LeadFollow', label: 'Lead / follow', ids: { ai: 1045, mcf: 2056}, toggle: true, group: 'gait', note: 'Walks alongside and follows a person.' },
+  { name: 'LeadFollow', label: 'Lead / follow', ids: { ai: 1045, mcf: 2056 }, toggle: true, group: 'gait', note: 'Walks alongside and follows a person.' },
 
   // dynamic - all risky
   { name: 'FrontJump', label: 'Front jump', ids: { normal: 1031, mcf: 1031 }, group: 'dynamic', risky: true, note: 'Jumps forward. Needs clear space ahead.' },
   { name: 'FrontPounce', label: 'Front pounce', ids: { normal: 1032, mcf: 1032 }, group: 'dynamic', risky: true, note: 'Lunges forward in a pounce. Needs clear space ahead.' },
-  { name: 'FrontFlip', label: 'Front flip', ids: { normal: 1030, mcf: 1030 }, group: 'dynamic', risky: true, note: 'Needs clear space and a soft floor.' },
+  { name: 'FrontFlip', label: 'Front flip', ids: { normal: 1030, mcf: 1030 }, parameter: { data: true }, group: 'dynamic', risky: true, note: 'Needs clear space and a soft floor.' },
   { name: 'BackFlip', label: 'Back flip', ids: { ai: 1044, mcf: 2043 }, parameter: { data: true }, group: 'dynamic', risky: true, note: 'AI or MCF mode only. Needs clear space and a soft floor.' },
   { name: 'LeftFlip', label: 'Left flip', ids: { ai: 1042, mcf: 2041}, parameter: { data: true }, group: 'dynamic', risky: true, note: 'Sideways flip to the left. Needs clear space and a soft floor.' },
   { name: 'RightFlip', label: 'Right flip', ids: { ai: 1043}, parameter: { data: true }, group: 'dynamic', risky: true, note: 'Sideways flip to the right. Needs clear space and a soft floor.' },
   { name: 'Handstand', label: 'Handstand', ids: { ai: 1301, mcf: 2044}, toggle: true, group: 'dynamic', risky: true, note: 'Balances on the front legs. Send again to come down.' },
-  { name: 'StandOut', label: 'Stand out', ids: { normal: 1039, ai: 1039 }, toggle: true, group: 'dynamic', risky: true, note: 'Front-leg handstand. Send again to exit.' },
+  { name: 'StandOut', label: 'Stand out', ids: { ai: 1039 }, toggle: true, group: 'dynamic', risky: true, note: 'Front-leg handstand. Send again to exit.' },
   { name: 'FreeJump', label: 'Free jump', ids: { mcf: 2047}, toggle: true, group: 'dynamic', risky: true, note: 'Jumps over an obstacle it spots by itself.' },
   { name: 'FreeAvoid', label: 'Free avoid', ids: { mcf: 2048}, toggle: true, group: 'dynamic', risky: true, note: 'Steers around obstacles on its own.' },
   { name: 'BackStand', label: 'Back stand', ids: { mcf: 2050}, toggle: true, group: 'dynamic', risky: true, note: 'Rears up and balances on the back legs.' },
@@ -316,8 +321,6 @@ export const ACTION_GROUPS: { key: ActionSpec['group']; label: string }[] = [
 
 /** Sport calls that read a value back rather than moving the robot. */
 export const SPORT_QUERIES = [
-  { label: 'Body height', apiId: SPORT_CMD.GetBodyHeight },
-  { label: 'Foot raise height', apiId: SPORT_CMD.GetFootRaiseHeight },
   { label: 'Speed level', apiId: SPORT_CMD.GetSpeedLevel },
   { label: 'Full state', apiId: SPORT_CMD.GetState, parameter: ['state', 'bodyHeight', 'speedLevel', 'gait', 'continuousGait', 'economicGait'] },
 ]
@@ -485,6 +488,10 @@ export function describeError(source: number | string, code: number): { source: 
  * (DDS_ERROR_DESCRIPTIONS).
  */
 export const API_STATUS_CODES: Record<number, string> = {
+  4101: 'Wrong number of trajectory points',
+  4201: 'The action timed out',
+  4205: 'The motion service is not ready yet',
+  4206: 'Wrong posture for this action - try Balance stand first',
   3001: 'Request sent but no response',
   3102: 'Request rejected: another client holds the lease',
   3103: 'API not registered on the robot',

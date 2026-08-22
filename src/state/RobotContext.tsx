@@ -283,7 +283,9 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     const data = unwrapResponse<{ name?: string }>(res)
     const name = data?.name ?? null
     setReportedMode(name)
-    if (name === 'normal' || name === 'ai') setMotionMode(name)
+    // Follow whatever the robot says it runs. Rejecting 'mcf' here is what used
+    // to leave a 1.1.7+ robot being sent the legacy id table.
+    if (name === 'normal' || name === 'ai' || name === 'advanced' || name === 'mcf') setMotionMode(name)
     return name
   }, [conn])
 
@@ -291,8 +293,8 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     async (name: string) => {
       await conn.request(TOPICS.MOTION_SWITCHER, MOTION_SWITCHER_API.SET_MODE, { name })
       setReportedMode(name)
-      if (name === 'normal' || name === 'ai') setMotionMode(name)
-      log(`Motion mode set to ${name}. The robot takes a few seconds to settle.`)
+      if (name === 'normal' || name === 'ai' || name === 'advanced' || name === 'mcf') setMotionMode(name as MotionMode)
+      log(`Motion service set to ${name}. The robot takes a few seconds to settle.`)
     },
     [conn, log],
   )
