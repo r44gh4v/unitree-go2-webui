@@ -71,6 +71,14 @@ function base64ToBytes(b64: string): Uint8Array {
   return out
 }
 
+/** Encode bytes as base64, in chunks so a large map does not blow the stack. */
+function bytesToBase64(bytes: Uint8Array): string {
+  let bin = ''
+  const step = 0x8000
+  for (let i = 0; i < bytes.length; i += step) bin += String.fromCharCode(...bytes.subarray(i, i + step))
+  return btoa(bin)
+}
+
 /** Validation answer the robot expects: base64(md5_bytes("UnitreeGo2_" + key)). */
 export function encryptValidationKey(key: string): string {
   return hexToBase64(md5(`UnitreeGo2_${key}`))
@@ -171,6 +179,8 @@ export class Go2Connection extends EventTarget {
   private chunks = new Map<string | number, Uint8Array[]>()
   /** in-flight file downloads (SLAM map), keyed by req_uuid */
   private fileDownloads = new Map<string, FileDownload>()
+  /** per-chunk upload acks, keyed by req_uuid */
+  private uploadAcks = new Map<string, (status: string | null) => void>()
   private msgCount = 0
   private byteCount = 0
   /** Bumped by every connect and disconnect so a superseded attempt can bail. */
@@ -423,7 +433,8 @@ export class Go2Connection extends EventTarget {
     // File-transfer frames (the SLAM map) arrive as a burst of large chunks;
     // keep them out of the console log or they drown everything else.
     const isFileChunk = msg.type === DATA_CHANNEL_TYPE.RTC_INNER_REQ && info?.req_type === 'request_static_file'
-    if (msg.type !== DATA_CHANNEL_TYPE.HEARTBEAT && !NOISY_TOPICS.has(topic) && !isFileChunk) {
+    const isUploadAck = msg.type === DATA_CHANNEL_TYPE.RTC_INNER_REQ && info?.req_type === 'push_static_file'
+    if (msg.type !== DATA_CHANNEL_TYPE.HEARTBEAT && !NOISY_TOPICS.has(topic) && !isFileChunk && !isUploadAck) {
       this.traffic('in', raw.length > 900 ? `${raw.slice(0, 900)}…` : raw)
     }
 
@@ -453,6 +464,9 @@ export class Go2Connection extends EventTarget {
           this.sendRaw({ type: DATA_CHANNEL_TYPE.RTC_INNER_REQ, topic: '', data: info }, true)
         } else if (isFileChunk && info) {
           this.handleFileChunk(info)
+        } else if (isUploadAck && info) {
+          const ack = this.uploadAcks.get(String(info.req_uuid ?? ''))
+          if (ack) ack(typeof info.file_status === 'string' ? info.file_status : null)
         } else {
           this.resolvePending(msg)
           this.emit('inner-req', msg)
@@ -862,6 +876,82 @@ export class Go2Connection extends EventTarget {
       }
     }
     return out
+  }
+
+  /**
+   * Push a file to the robot in 30 KB base64 chunks, waiting for the robot's
+   * per-chunk ack. The pacing (a breather every five chunks) and the ack
+   * protocol match what the phone app does; the firmware drops chunks that
+   * arrive faster.
+   *
+   * Note this same channel can overwrite files on the robot, so callers should
+   * only ever offer it for map slots.
+   */
+  async uploadFile(
+    filePath: string,
+    bytes: Uint8Array,
+    onProgress?: (fraction: number) => void,
+    business = 'uslam_final_pcd',
+  ): Promise<void> {
+    if (!this.isOpen) throw new Error('Not connected')
+    const b64 = bytesToBase64(bytes)
+    const CHUNK = 30 * 1024
+    const chunks: string[] = []
+    for (let i = 0; i < b64.length; i += CHUNK) chunks.push(b64.slice(i, i + CHUNK))
+    if (!chunks.length) throw new Error(`${filePath} is empty`)
+
+    for (let i = 0; i < chunks.length; i++) {
+      // The robot needs a breather every few chunks or it starts dropping them.
+      if (i > 0 && i % 5 === 0) await new Promise((r) => setTimeout(r, 500))
+
+      const reqUuid = `upload_req_${genId()}_${i}`
+      const ack = new Promise<string | null>((resolve) => {
+        this.uploadAcks.set(reqUuid, resolve)
+        setTimeout(() => {
+          if (this.uploadAcks.has(reqUuid)) resolve(null)
+        }, 10000)
+      })
+
+      this.sendRaw(
+        {
+          type: DATA_CHANNEL_TYPE.RTC_INNER_REQ,
+          topic: '',
+          data: {
+            req_type: 'push_static_file',
+            req_uuid: reqUuid,
+            related_bussiness: business,
+            file_md5: 'null',
+            file_path: filePath,
+            file_size_after_b64: b64.length,
+            file: {
+              chunk_index: i + 1,
+              total_chunk_num: chunks.length,
+              chunk_data: chunks[i],
+              chunk_data_size: chunks[i].length,
+            },
+          },
+        },
+        true,
+      )
+
+      const status = await ack
+      this.uploadAcks.delete(reqUuid)
+      if (status !== 'ok') {
+        throw new Error(`${filePath}: chunk ${i + 1} of ${chunks.length} ${status ? `failed (${status})` : 'timed out'}`)
+      }
+      onProgress?.((i + 1) / chunks.length)
+    }
+    this.traffic('sys', `${filePath} uploaded (${chunks.length} chunks)`)
+  }
+
+  /** Restore a downloaded map bundle onto the robot, one file after another. */
+  async uploadMap(
+    files: { name: string; bytes: Uint8Array }[],
+    onProgress?: (file: string, fraction: number) => void,
+  ): Promise<void> {
+    for (const f of files) {
+      await this.uploadFile(f.name, f.bytes, (frac) => onProgress?.(f.name, frac))
+    }
   }
 }
 

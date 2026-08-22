@@ -135,6 +135,29 @@ export default function MappingPanel() {
   const [args, setArgs] = useState<Record<string, number[]>>({})
   const [downloading, setDownloading] = useState(false)
   const [dlStatus, setDlStatus] = useState('')
+  const restoreRef = useRef<HTMLInputElement>(null)
+
+  // Restore a previously downloaded bundle onto the robot's single map slot.
+  const restoreMap = async (picked: FileList) => {
+    const wanted = ['map.pcd', 'map.pgm', 'map.txt']
+    const files = [...picked].filter((f) => wanted.includes(f.name))
+    if (!files.some((f) => f.name === 'map.pcd')) {
+      setDlStatus('Pick the downloaded map files - map.pcd is required.')
+      return
+    }
+    setDownloading(true)
+    try {
+      const bundle = await Promise.all(
+        files.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) })),
+      )
+      await conn.uploadMap(bundle, (name, frac) => setDlStatus(`Sending ${name} ${Math.round(frac * 100)}%…`))
+      setDlStatus(`Restored ${bundle.map((b) => b.name).join(', ')}. Set the map id, then start localisation.`)
+    } catch (e) {
+      setDlStatus(`Restore failed: ${(e as Error).message}`)
+    } finally {
+      setDownloading(false)
+    }
+  }
   const logRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -231,7 +254,27 @@ export default function MappingPanel() {
         <button className="btn sm block" title="Download map.pcd, map.pgm and map.txt from the robot" onClick={downloadMap} disabled={downloading}>
           {downloading ? 'Downloading…' : 'Download map'}
         </button>
-        {dlStatus && <p className={`note${dlStatus.includes('failed') || dlStatus.includes('no map') ? ' warn' : ''}`}>{dlStatus}</p>}
+        <input
+          ref={restoreRef}
+          type="file"
+          multiple
+          accept=".pcd,.pgm,.txt"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            if (e.target.files?.length) void restoreMap(e.target.files)
+            e.target.value = ''
+          }}
+        />
+        <button
+          className="btn sm block"
+          style={{ marginTop: 4 }}
+          title="Send a downloaded map bundle back to the robot's single map slot"
+          onClick={() => restoreRef.current?.click()}
+          disabled={downloading}
+        >
+          Restore a saved map
+        </button>
+        {dlStatus && <p className={`note${dlStatus.includes('failed') || dlStatus.includes('no map') || dlStatus.includes('required') ? ' warn' : ''}`}>{dlStatus}</p>}
       </div>
 
       {GROUPS.map((g) => (
