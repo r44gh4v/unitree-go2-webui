@@ -383,7 +383,10 @@ textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
   white-space: nowrap;
   box-shadow: var(--shadow);
 }
-.btn:hover:not(:disabled) { background: var(--salmon); border-color: var(--salmon); color: var(--crimson-deep); }
+/* Hover is a hint, not a state: the fill stays put so it can never be
+   mistaken for a toggled-on button. */
+.btn:hover:not(:disabled) { background: var(--surface-2); border-color: var(--text-strong); }
+.btn.primary:hover:not(:disabled) { background: var(--crimson-deep); }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 /* Disabled is a state, not a ghost: sunken fill, quiet edge, text that can
    still be read - so a disconnected grid looks parked, not broken. */
@@ -407,7 +410,6 @@ textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
   color: var(--cream);
   font-weight: 650;
 }
-.btn.primary:hover:not(:disabled) { background: var(--crimson-deep); border-color: var(--crimson-deep); color: var(--cream); }
 
 .btn.danger { border-color: var(--text-strong); color: var(--text-strong); }
 
@@ -453,8 +455,31 @@ textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
 }
 .btn.action.primary .action-icon { color: var(--cream); }
 .action-icon svg { width: 100%; height: 100%; display: block; }
+.action-icon, .action-icon svg { pointer-events: none; }
 .action-label { line-height: 1.15; }
 .btn.action .badge { position: absolute; top: 4px; right: 4px; }
+
+/* Toggled on: filled, plus a marker dot so the state survives a screenshot,
+   a colourblind reader, or a glance from across the room. */
+.btn.action.primary::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cream);
+}
+/* Running: the whole tile pulses so it is obvious which one the robot is
+   working on, not just a 12px corner spinner. */
+.btn.action.running {
+  border-color: var(--text-strong);
+  animation: action-pulse 1.1s ease-in-out infinite;
+}
+@keyframes action-pulse {
+  50% { box-shadow: 0 0 0 3px rgba(249, 157, 144, 0.35); }
+}
 
 /* a corner spinner while the robot is carrying the action out */
 .action-busy {
@@ -906,8 +931,10 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
 
 .toasts {
   position: fixed;
-  top: 12px;
-  right: 12px;
+  /* Bottom-left: out of the way of the tab strip and the action grid, which
+     is what the top-right corner used to cover. */
+  bottom: 34px;
+  left: 14px;
   z-index: 1000;
   display: flex;
   flex-direction: column;
@@ -928,7 +955,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
   animation: toast-in 0.18s ease-out;
 }
 @keyframes toast-in {
-  from { opacity: 0; transform: translateX(12px); }
+  from { opacity: 0; transform: translateX(-12px); }
 }
 .toast-src {
   font-size: 10px;

@@ -12,8 +12,10 @@ export default function DrivePanel() {
   const { connState, conn, sport, motionMode, log } = useRobot()
   const connected = connState === 'connected'
 
-  const [linear, setLinear] = useState(0.4)
-  const [angular, setAngular] = useState(0.8)
+  // Full-stick speeds, matching what the handheld remote and the phone app
+  // give you in normal mode. The old 0.4 / 0.8 felt sluggish on real hardware.
+  const [linear, setLinear] = useState(1.0)
+  const [angular, setAngular] = useState(1.5)
   const [enabled, setEnabled] = useState(true)
   const [bodyHeight, setBodyHeight] = useState(0)
   const [footHeight, setFootHeight] = useState(0)
@@ -84,12 +86,12 @@ export default function DrivePanel() {
 
         <div className="slider-row">
           <label htmlFor="lin">Walk</label>
-          <input id="lin" type="range" min={0.1} max={1.5} step={0.05} value={linear} title="Top forward and sideways speed at full stick" onChange={(e) => setLinear(Number(e.target.value))} />
+          <input id="lin" type="range" min={0.1} max={2.5} step={0.05} value={linear} title="Top forward and sideways speed at full stick" onChange={(e) => setLinear(Number(e.target.value))} />
           <span className="val">{linear.toFixed(2)} m/s</span>
         </div>
         <div className="slider-row">
           <label htmlFor="ang">Turn</label>
-          <input id="ang" type="range" min={0.1} max={2.5} step={0.05} value={angular} title="Top turning speed at full stick" onChange={(e) => setAngular(Number(e.target.value))} />
+          <input id="ang" type="range" min={0.1} max={3} step={0.05} value={angular} title="Top turning speed at full stick" onChange={(e) => setAngular(Number(e.target.value))} />
           <span className="val">{angular.toFixed(2)} r/s</span>
         </div>
 

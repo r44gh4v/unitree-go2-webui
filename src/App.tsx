@@ -150,8 +150,8 @@ function FaultToasts() {
       fresh.push({ id: nextId.current++, source: e.source, text: e.text })
     }
     if (!fresh.length) return
-    setToasts((prev) => [...fresh, ...prev].slice(0, 4))
-    const timers = fresh.map((t) => setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== t.id)), 8000))
+    setToasts((prev) => [...fresh, ...prev].slice(0, 3))
+    const timers = fresh.map((t) => setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== t.id)), 6000))
     return () => timers.forEach(clearTimeout)
   }, [robotErrors])
 
