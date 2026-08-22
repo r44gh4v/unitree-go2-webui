@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useRobot } from '../state/RobotContext'
-import { MOTION_MODE_OPTIONS } from '../lib/constants'
+import { SWITCHABLE_MODES } from '../lib/constants'
 import type { CloudRobot, ConnectMethod, DiscoveredRobot } from '../lib/types'
-import { AlertIcon, CheckIcon, PlugIcon, ScanIcon } from '../components/Icons'
+import { AlertIcon, BoltIcon, CheckIcon, PlugIcon, ScanIcon } from '../components/Icons'
 
 const STORE = {
   method: 'go2.method',
@@ -18,6 +18,20 @@ const STORE = {
 /** How long a saved cloud sign-in is trusted before asking again. */
 const CLOUD_SESSION_MS = 24 * 60 * 60 * 1000
 
+/** What each motion service is called in plain words. */
+const SERVICE_LABEL: Record<string, string> = {
+  normal: 'Walking',
+  ai: 'AI',
+  advanced: 'Advanced',
+  mcf: 'Unified (1.1.7+)',
+}
+
+const SERVICE_NOTE: Record<string, string> = {
+  normal: 'Everyday walking, postures and gestures.',
+  ai: 'Adds flips, the handstand and the free gaits.',
+  advanced: 'Adds cross step, bound and one-sided step.',
+}
+
 const METHODS: { value: ConnectMethod; label: string; blurb: string }[] = [
   { value: 'ip', label: 'IP', blurb: 'On this network, address known.' },
   { value: 'serial', label: 'Serial', blurb: 'On this network, found by serial number.' },
@@ -28,7 +42,7 @@ const METHODS: { value: ConnectMethod; label: string; blurb: string }[] = [
 export default function ConnectPanel() {
   const {
     connState, connError, connect, disconnect, retry,
-    motionMode, setMotionMode, reportedMode, refreshMotionMode, switchMotionMode, log,
+    reportedMode, refreshMotionMode, switchMotionMode, log,
   } = useRobot()
 
   const [method, setMethod] = useState<ConnectMethod>(() => {
@@ -354,11 +368,11 @@ export default function ConnectPanel() {
                 <label
                   className={`toggle${preferLocal ? ' on' : ''}`}
                   style={{ marginTop: 8 }}
-                  title="Check whether the robot answers on the server's own network and connect directly when it does; the cloud relay is only used when it doesn't"
+                  title="If the robot turns out to be on this same network, talk to it directly instead of going out to the internet and back. Falls back to the relay automatically."
                 >
                   <span className="toggle-label">
-                    <PlugIcon size={15} />
-                    Direct when on the same network
+                    <BoltIcon size={15} />
+                    Skip the relay at home
                   </span>
                   <input
                     type="checkbox"
@@ -450,45 +464,48 @@ export default function ConnectPanel() {
       </div>
 
       <div className="section">
-        <p className="eyebrow">Motion mode</p>
-        <div className="seg">
-          {(['normal', 'ai', 'mcf'] as const).map((m) => (
-            <button
-              key={m}
-              className={`seg-btn${motionMode === m ? ' active' : ''}`}
-              onClick={() => setMotionMode(m)}
-              title={
-                m === 'normal' ? 'Walking and gestures'
-                  : m === 'ai' ? 'Flips and free gaits'
-                    : 'Firmware 1.1.7 and newer'
-              }
-            >
-              {m === 'mcf' ? 'MCF' : m === 'ai' ? 'AI' : 'Normal'}
-            </button>
-          ))}
-        </div>
-        <p className="note">Picks which command set the Actions tab offers.</p>
+        <p className="eyebrow">Motion service</p>
+        {!connected ? (
+          <p className="note">The robot reports which motion service it runs once connected.</p>
+        ) : (
+          <>
+            <div className="kv" style={{ marginBottom: 8 }}>
+              <dt>Running</dt>
+              <dd>{reportedMode ? SERVICE_LABEL[reportedMode] ?? reportedMode : 'asking…'}</dd>
+            </div>
+            <p className="note">
+              {reportedMode === 'mcf'
+                ? 'This firmware runs one motion service for everything, so there is nothing to switch between. The Actions tab already matches it.'
+                : reportedMode
+                  ? 'Older firmware splits motion across three services. Switching takes a few seconds and the robot stands still while it happens.'
+                  : 'Reading the robot…'}
+            </p>
 
-        <div className="btn-row">
-          <button className="btn sm" disabled={!connected} title="Ask the robot which mode it is actually in" onClick={() => void refreshMotionMode().catch((e) => log(`Mode read failed: ${(e as Error).message}`))}>
-            Read robot
-          </button>
-          {MOTION_MODE_OPTIONS.map((m) => (
+            {reportedMode && reportedMode !== 'mcf' && (
+              <div className="btn-row">
+                {SWITCHABLE_MODES.map((m) => (
+                  <button
+                    key={m}
+                    className={`btn sm${reportedMode === m ? ' on' : ''}`}
+                    disabled={reportedMode === m}
+                    title={SERVICE_NOTE[m]}
+                    onClick={() => void switchMotionMode(m).catch((e) => setNote(`Could not switch: ${e.message}`))}
+                  >
+                    {SERVICE_LABEL[m]}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <button
-              key={m.value}
-              className="btn sm"
-              disabled={!connected}
-              title={`Tell the robot to switch to ${m.label} mode. ${m.note}`}
-              onClick={() => void switchMotionMode(m.value).catch((e) => log(`Mode switch failed: ${e.message}`))}
+              className="btn sm ghost"
+              style={{ marginTop: 6 }}
+              title="Ask the robot again which motion service it is running"
+              onClick={() => void refreshMotionMode().catch((e) => setNote(`Could not read the motion service: ${(e as Error).message}`))}
             >
-              Set {m.label}
+              Re-check
             </button>
-          ))}
-        </div>
-        {reportedMode && (
-          <p className="note">
-            Robot reports <b style={{ color: 'var(--text-strong)' }}>{reportedMode}</b>
-          </p>
+          </>
         )}
       </div>
     </>

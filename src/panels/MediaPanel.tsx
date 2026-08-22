@@ -21,7 +21,6 @@ export default function MediaPanel() {
   const [brightness, setBrightness] = useState(5)
   const [volume, setVolume] = useState(5)
   const [color, setColor] = useState<VuiColor>('cyan')
-  const [colorSeconds, setColorSeconds] = useState(5)
   const [flash, setFlash] = useState(false)
   const [tracks, setTracks] = useState<AudioTrack[] | null>(null)
   const [loadingTracks, setLoadingTracks] = useState(false)
@@ -116,7 +115,7 @@ export default function MediaPanel() {
           step={1}
           value={brightness}
           disabled={!connected}
-          title="Head-light brightness, sent when you release"
+          title="Head-light brightness, sent when you let go"
           onChange={(e) => setBrightness(Number(e.target.value))}
           onPointerUp={() => vui(VUI_API.SET_BRIGHTNESS, { brightness }, 'Brightness')}
           onKeyUp={() => vui(VUI_API.SET_BRIGHTNESS, { brightness }, 'Brightness')}
@@ -124,66 +123,46 @@ export default function MediaPanel() {
         <span className="val">{brightness}/10</span>
       </div>
 
-      <div style={{ display: 'flex', gap: 6, margin: '10px 0' }}>
+      {/* A swatch is the action: picking one sends it. The colour stays until
+          another is picked or the light is handed back to the robot. */}
+      <p className="note">Pick a colour to send it. It stays on until you change it.</p>
+      <div className="swatches">
         {VUI_COLORS.map((c) => (
           <button
             key={c}
-            aria-label={c}
-            title={c}
-            onClick={() => setColor(c)}
-            style={{
-              width: 26,
-              height: 26,
-              borderRadius: '50%',
-              background: VUI_COLOR_HEX[c],
-              border: color === c ? '2px solid var(--accent)' : '1px solid var(--line-strong)',
-              cursor: 'pointer',
+            className={`swatch${color === c ? ' on' : ''}`}
+            aria-label={`Set the light ${c}`}
+            title={`Set the light ${c}`}
+            disabled={!connected}
+            style={{ background: VUI_COLOR_HEX[c] }}
+            onClick={() => {
+              setColor(c)
+              void vui(
+                VUI_API.SET_COLOR,
+                flash ? { color: c, time: 999, flash_cycle: 1000 } : { color: c, time: 999 },
+                'Light',
+              )
             }}
           />
         ))}
-      </div>
-
-      <div className="slider-row">
-        <label htmlFor="secs">Hold for</label>
-        <input id="secs" type="range" min={1} max={30} step={1} value={colorSeconds} title="How long the colour stays before returning to normal" onChange={(e) => setColorSeconds(Number(e.target.value))} />
-        <span className="val">{colorSeconds}s</span>
-      </div>
-
-      <label className={`toggle${flash ? ' on' : ''}`} style={{ marginBottom: 10 }} title="Blink the light instead of a steady colour">
-        <span className="toggle-label">
-          <BoltIcon size={14} />
-          Flash once a second
-        </span>
-        <input type="checkbox" checked={flash} onChange={(e) => setFlash(e.target.checked)} style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }} />
-        <span className="track" />
-      </label>
-
-      <div className="btn-row">
         <button
-          className="btn"
-          style={{ flex: 1 }}
+          className="btn sm ghost"
           disabled={!connected}
-          title="Send the chosen colour and duration to the head light"
-          onClick={() =>
-            vui(
-              VUI_API.SET_COLOR,
-              flash ? { color, time: colorSeconds, flash_cycle: 1000 } : { color, time: colorSeconds },
-              'Set colour',
-            )
-          }
-        >
-          <LightIcon size={15} />
-          Set light to {color}
-        </button>
-        <button
-          className="btn ghost"
-          disabled={!connected}
-          title="Hand the head light back to the robot's own control"
-          onClick={() => vui(VUI_API.LED_OFF, {}, 'Release light')}
+          title="Hand the light back to the robot's own control"
+          onClick={() => void vui(VUI_API.RELEASE_COLOR, {}, 'Light')}
         >
           Release
         </button>
       </div>
+
+      <label className={`toggle${flash ? ' on' : ''}`} style={{ marginBottom: 10 }} title="Blink the colour instead of holding it steady - applies to the next colour you pick">
+        <span className="toggle-label">
+          <BoltIcon size={14} />
+          Blink instead of steady
+        </span>
+        <input type="checkbox" checked={flash} onChange={(e) => setFlash(e.target.checked)} style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }} />
+        <span className="track" />
+      </label>
 
       <div className="divider" />
       <p className="eyebrow icon-eyebrow"><SpeakerIcon size={14} /> Speaker</p>

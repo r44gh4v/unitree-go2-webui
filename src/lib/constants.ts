@@ -316,24 +316,18 @@ export const ACTION_GROUPS: { key: ActionSpec['group']; label: string }[] = [
   { key: 'posture', label: 'Posture' },
   { key: 'gesture', label: 'Gestures' },
   { key: 'gait', label: 'Gaits' },
-  { key: 'dynamic', label: 'Dynamic moves' },
+  { key: 'dynamic', label: 'Stunts' },
 ]
 
 /** Sport calls that read a value back rather than moving the robot. */
 export const SPORT_QUERIES = [
-  { label: 'Speed level', apiId: SPORT_CMD.GetSpeedLevel },
+  { label: 'Pace setting', apiId: SPORT_CMD.GetSpeedLevel },
   { label: 'Full state', apiId: SPORT_CMD.GetState, parameter: ['state', 'bodyHeight', 'speedLevel', 'gait', 'continuousGait', 'economicGait'] },
 ]
 
 // ---- motion switcher ----
 
 export const MOTION_SWITCHER_API = { GET_MODE: 1001, SET_MODE: 1002, RELEASE_MODE: 1003, SET_SILENT: 1004, GET_SILENT: 1005 } as const
-
-export const MOTION_MODE_OPTIONS: { value: string; label: string; note: string }[] = [
-  { value: 'normal', label: 'Normal', note: 'Standard walking and gestures. Required for most commands.' },
-  { value: 'ai', label: 'AI', note: 'Unlocks flips, handstand, and the free gaits. Takes ~10s to switch.' },
-  { value: 'advanced', label: 'Advanced', note: 'Present on some firmware builds only.' },
-]
 
 // ---- vui: lights and volume ----
 
@@ -345,6 +339,8 @@ export const VUI_API = {
   SET_BRIGHTNESS: 1005,
   GET_BRIGHTNESS: 1006,
   SET_COLOR: 1007,
+  /** Hands the light back to the firmware, clearing a set colour. */
+  RELEASE_COLOR: 1008,
   LED_OFF: 1008,
 } as const
 

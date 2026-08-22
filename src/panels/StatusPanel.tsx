@@ -77,7 +77,7 @@ export default function StatusPanel() {
           <p className="eyebrow">Active faults</p>
           {active.slice(0, 6).map((e, i) => (
             <div key={i} style={{ marginBottom: 6 }}>
-              <div style={{ fontSize: 13, color: 'var(--crimson)', fontWeight: 600 }}>{e.text}</div>
+              <div style={{ fontSize: 13, color: 'var(--text-strong)', fontWeight: 600 }}>{e.text}</div>
               <div style={{ fontSize: 11, color: 'var(--muted)' }}>
                 {e.source} · {new Date(e.ts).toLocaleTimeString()}
               </div>
@@ -89,8 +89,8 @@ export default function StatusPanel() {
         </div>
       )}
 
-      <div className="section">
-        <p className="eyebrow">Power</p>
+      <details className="section drawer">
+        <summary className="eyebrow">Power</summary>
         <dl className="kv">
           <dt>Voltage</dt>
           <dd>{num(lowState?.power_v)} V</dd>
@@ -116,10 +116,10 @@ export default function StatusPanel() {
             </table>
           </>
         )}
-      </div>
+      </details>
 
-      <div className="section">
-        <p className="eyebrow">Motion</p>
+      <details className="section drawer">
+        <summary className="eyebrow">Motion</summary>
         <dl className="kv">
           <dt>Velocity x / y</dt>
           <dd>
@@ -138,11 +138,11 @@ export default function StatusPanel() {
           <dt>Step height</dt>
           <dd>{num(sportState?.foot_raise_height)} m</dd>
         </dl>
-      </div>
+      </details>
 
       {feet.length > 0 && (
-        <div className="section">
-          <p className="eyebrow">Foot contact</p>
+        <details className="section drawer">
+          <summary className="eyebrow">Foot contact</summary>
           <table className="table">
             <tbody>
               {feet.map((f, i) => (
@@ -158,12 +158,12 @@ export default function StatusPanel() {
               ))}
             </tbody>
           </table>
-        </div>
+        </details>
       )}
 
       {motors.length > 0 && (
-        <div className="section">
-          <p className="eyebrow">Joints</p>
+        <details className="section drawer">
+          <summary className="eyebrow">Joints</summary>
           <table className="table">
             <thead>
               <tr>
@@ -186,7 +186,7 @@ export default function StatusPanel() {
               ))}
             </tbody>
           </table>
-        </div>
+        </details>
       )}
     </>
   )

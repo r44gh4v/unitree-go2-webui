@@ -52,18 +52,18 @@
    asks for dark and the user has not chosen, or when the footer toggle says so. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #170b0f;
-    --surface: #231118;
-    --surface-2: #2a141c;
-    --sunken: #110709;
+    --bg: #14090d;
+    --surface: #241419;
+    --surface-2: #2e1a21;
+    --sunken: #1b0e12;
 
-    --line: #3a1d26;
-    --line-strong: #4f2833;
+    --line: #452630;
+    --line-strong: #5e3441;
 
     --text: #f4e3d8;
     --text-strong: #f99d90;
-    --muted: #c49b90;
-    --faint: #93706a;
+    --muted: #c9a49a;
+    --faint: #a1837c;
 
     --accent: #f99d90;
     --accent-soft: #9e122c;
@@ -72,25 +72,25 @@
     --warn: #e2a45f;
     --danger: #f99d90;
 
-    --estop-off: #6b3038;
+    --estop-off: #7a3a43;
     --icon-dim: #7a544e;
     --spinner-track: rgba(249, 157, 144, 0.25);
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   }
 }
 :root[data-theme="dark"] {
-  --bg: #170b0f;
-  --surface: #231118;
-  --surface-2: #2a141c;
-  --sunken: #110709;
+  --bg: #14090d;
+  --surface: #241419;
+  --surface-2: #2e1a21;
+  --sunken: #1b0e12;
 
-  --line: #3a1d26;
-  --line-strong: #4f2833;
+  --line: #452630;
+  --line-strong: #5e3441;
 
   --text: #f4e3d8;
   --text-strong: #f99d90;
-  --muted: #c49b90;
-  --faint: #93706a;
+  --muted: #c9a49a;
+  --faint: #a1837c;
 
   --accent: #f99d90;
   --accent-soft: #9e122c;
@@ -99,7 +99,7 @@
   --warn: #e2a45f;
   --danger: #f99d90;
 
-  --estop-off: #6b3038;
+  --estop-off: #7a3a43;
   --icon-dim: #7a544e;
   --spinner-track: rgba(249, 157, 144, 0.25);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
@@ -926,6 +926,46 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
   box-shadow: 0 4px 18px rgba(120, 13, 32, 0.14);
 }
 .lock-card .note { margin: 0; }
+
+/* A detail block that stays folded until asked for, so the panel leads with
+   the handful of numbers that matter and keeps the rest one click away. */
+.drawer > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+.drawer > summary::-webkit-details-marker { display: none; }
+.drawer > summary::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 4px solid currentColor;
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+  transition: transform 0.12s;
+}
+.drawer[open] > summary::before { transform: rotate(90deg); }
+.drawer > summary:hover { color: var(--text-strong); }
+.drawer[open] > summary { margin-bottom: 10px; }
+
+/* ---------- colour swatches ---------- */
+
+.swatches { display: flex; align-items: center; gap: 6px; margin: 8px 0 10px; flex-wrap: wrap; }
+.swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.swatch:hover:not(:disabled) { transform: scale(1.08); }
+.swatch.on { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text-strong); }
+.swatch:disabled { cursor: not-allowed; opacity: 0.55; }
 
 /* ---------- fault toasts ---------- */
 

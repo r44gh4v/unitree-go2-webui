@@ -19,12 +19,12 @@ import ConsolePanel from './panels/ConsolePanel'
 const LidarPanel = lazy(() => import('./panels/LidarPanel'))
 
 const TABS = [
-  { key: 'actions', label: 'Actions', title: 'Postures, gestures, gaits, and dynamic moves', Panel: ActionsPanel },
-  { key: 'media', label: 'Media', title: 'Head light, speaker, audio library, megaphone, and announcements', Panel: MediaPanel },
-  { key: 'lidar', label: 'Lidar', title: 'Live 3D map from the head lidar', Panel: LidarPanel },
-  { key: 'mapping', label: 'Map', title: 'Build a map, localise, navigate, and set patrols', Panel: MappingPanel },
-  { key: 'system', label: 'System', title: 'Services, robot info scripts, and link bandwidth', Panel: SystemPanel },
-  { key: 'console', label: 'Console', title: 'Send any command and watch the raw protocol', Panel: ConsolePanel },
+  { key: 'actions', label: 'Actions', title: 'Stand, sit, gestures, gaits and stunts', Panel: ActionsPanel },
+  { key: 'media', label: 'Media', title: 'Head light, speaker and sounds', Panel: MediaPanel },
+  { key: 'lidar', label: 'Lidar', title: 'What the head lidar sees, in 3D', Panel: LidarPanel },
+  { key: 'mapping', label: 'Map', title: 'Map a space, then send the robot places in it', Panel: MappingPanel },
+  { key: 'system', label: 'System', title: 'Robot services, version info and link settings', Panel: SystemPanel },
+  { key: 'console', label: 'Console', title: 'Send any command by hand and watch the wire', Panel: ConsolePanel },
 ] as const
 
 /** Sits above the drive controls so the stop is always one click away. */

@@ -31,7 +31,7 @@ export default function ActionsPanel() {
     runAction(action, next)
       .then(() => {
         if (action.toggle) setToggles((t) => ({ ...t, [name]: next }))
-        log(`${action.label}${action.toggle ? (next ? ' on' : ' off') : ''} - accepted`)
+        log(`${action.label}${action.toggle ? (next ? ' on' : ' off') : ''} - the robot accepted it`)
       })
       .catch((e) => log(`${action.label} failed: ${(e as Error).message}`))
       .finally(() => setPending((p) => ({ ...p, [name]: false })))
@@ -109,11 +109,12 @@ export default function ActionsPanel() {
       })}
 
       {ACTIONS.every((a) => a.ids[motionMode] === undefined) && (
-        <p className="note warn">No actions are mapped for {motionMode} mode.</p>
+        <p className="note warn">This robot's motion service has none of these actions.</p>
       )}
 
       <div style={{ marginBottom: 16 }}>
-        <p className="eyebrow">Read state</p>
+        <p className="eyebrow">Ask the robot</p>
+        <p className="note">Reads a value back and prints it in the log.</p>
         <div className="btn-grid">
           {SPORT_QUERIES.map((q) => (
             <button key={q.label} className="btn" disabled={!connected} title={`Read the robot's current ${q.label.toLowerCase()}`} onClick={() => runQuery(q.label, q.apiId, q.parameter)}>

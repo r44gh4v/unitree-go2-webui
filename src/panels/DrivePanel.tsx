@@ -21,6 +21,7 @@ export default function DrivePanel() {
   const [footHeight, setFootHeight] = useState(0)
   const [speedLevel, setSpeedLevel] = useState(0)
   const [euler, setEuler] = useState({ roll: 0, pitch: 0, yaw: 0 })
+  const [posing, setPosing] = useState(false)
   const [avoidance, setAvoidance] = useState<boolean | null>(null)
 
   // Read the current obstacle-avoidance state; reused by the recheck link
@@ -147,43 +148,92 @@ export default function DrivePanel() {
       </div>
 
       <div className="section">
-        <p className="eyebrow">Trim and attitude</p>
+        <p className="eyebrow">Stance</p>
+        <p className="note">How the robot carries itself while walking. Each change is sent when you let go.</p>
         <div className="slider-row">
           <label htmlFor="bh">Height</label>
           <input
             id="bh" type="range" min={-0.18} max={0.03} step={0.01} value={bodyHeight} disabled={!connected}
-            title="Raise or lower the standing height, sent when you release"
+            title="Stand taller or lower than default"
             onChange={(e) => setBodyHeight(Number(e.target.value))}
             onPointerUp={() => cmd(SPORT_CMD.BodyHeight, { data: bodyHeight }, 'Height')}
             onKeyUp={() => cmd(SPORT_CMD.BodyHeight, { data: bodyHeight }, 'Height')}
           />
-          <span className="val">{bodyHeight.toFixed(2)} m</span>
+          <span className="val">{bodyHeight === 0 ? 'default' : `${bodyHeight > 0 ? '+' : ''}${(bodyHeight * 100).toFixed(0)} cm`}</span>
         </div>
         <div className="slider-row">
           <label htmlFor="fh">Step</label>
           <input
             id="fh" type="range" min={-0.06} max={0.03} step={0.01} value={footHeight} disabled={!connected}
-            title="How high the feet lift on each step"
+            title="How high the feet lift on each step - raise it for rough ground"
             onChange={(e) => setFootHeight(Number(e.target.value))}
             onPointerUp={() => cmd(SPORT_CMD.FootRaiseHeight, { data: footHeight }, 'Step')}
             onKeyUp={() => cmd(SPORT_CMD.FootRaiseHeight, { data: footHeight }, 'Step')}
           />
-          <span className="val">{footHeight.toFixed(2)} m</span>
+          <span className="val">{footHeight === 0 ? 'default' : `${footHeight > 0 ? '+' : ''}${(footHeight * 100).toFixed(0)} cm`}</span>
         </div>
         <div className="slider-row">
           <label htmlFor="sl">Pace</label>
           <input
             id="sl" type="range" min={-1} max={1} step={1} value={speedLevel} disabled={!connected}
-            title="The robot's own gait pace: slow, normal, or fast"
+            title="The robot's own gait pace"
             onChange={(e) => setSpeedLevel(Number(e.target.value))}
             onPointerUp={() => cmd(ids.SpeedLevel, { data: speedLevel }, 'Pace')}
             onKeyUp={() => cmd(ids.SpeedLevel, { data: speedLevel }, 'Pace')}
           />
           <span className="val">{speedLevel > 0 ? 'fast' : speedLevel < 0 ? 'slow' : 'normal'}</span>
         </div>
+        <button
+          className="btn sm ghost block"
+          disabled={!connected}
+          title="Put height, step and pace back to the robot's defaults"
+          onClick={() => {
+            setBodyHeight(0)
+            setFootHeight(0)
+            setSpeedLevel(0)
+            void cmd(SPORT_CMD.BodyHeight, { data: 0 }, 'Height')
+            void cmd(SPORT_CMD.FootRaiseHeight, { data: 0 }, 'Step')
+            void cmd(ids.SpeedLevel, { data: 0 }, 'Pace')
+          }}
+        >
+          Reset stance
+        </button>
+      </div>
 
-        <div className="divider" />
-        <p className="note">Body tilt. Run Pose mode first, Stop to leave it.</p>
+      <div className="section">
+        <p className="eyebrow">Body tilt</p>
+        <p className="note">
+          Leans the body while the feet stay planted. The robot only listens to this in pose mode, so the sliders
+          stay locked until you turn it on.
+        </p>
+
+        <label className={`toggle${posing ? ' on' : ''}`} style={{ marginBottom: 10 }} title="Hold position and follow the tilt sliders">
+          <span className="toggle-label">
+            <ShieldIcon size={15} />
+            Pose mode
+          </span>
+          <input
+            type="checkbox"
+            checked={posing}
+            disabled={!connected}
+            onChange={async (e) => {
+              const want = e.target.checked
+              try {
+                if (want) {
+                  await sport(ids.Pose, { data: true })
+                } else {
+                  await sport(SPORT_CMD.StopMove)
+                  setEuler({ roll: 0, pitch: 0, yaw: 0 })
+                }
+                setPosing(want)
+              } catch (err) {
+                log(`Pose mode: ${(err as Error).message}`)
+              }
+            }}
+            style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
+          />
+          <span className="track" />
+        </label>
 
         {([
           ['Roll', 'roll', -0.75, 0.75],
@@ -193,32 +243,28 @@ export default function DrivePanel() {
           <div className="slider-row" key={key}>
             <label htmlFor={`eu-${key}`}>{label}</label>
             <input
-              id={`eu-${key}`} type="range" min={min} max={max} step={0.05} value={euler[key]} disabled={!connected}
-              title={`Tilt the body in ${label.toLowerCase()} while the feet stay put`}
+              id={`eu-${key}`} type="range" min={min} max={max} step={0.05} value={euler[key]}
+              disabled={!connected || !posing}
+              title={posing ? `Lean the body in ${label.toLowerCase()}` : 'Turn pose mode on first'}
               onChange={(e) => setEuler((v) => ({ ...v, [key]: Number(e.target.value) }))}
               onPointerUp={sendEuler}
               onKeyUp={sendEuler}
             />
-            <span className="val">{euler[key].toFixed(2)}</span>
+            <span className="val">{euler[key] === 0 ? 'level' : euler[key].toFixed(2)}</span>
           </div>
         ))}
 
-        <div className="btn-row">
-          <button className="btn sm" disabled={!connected} title="Hold position and follow the tilt sliders" onClick={() => cmd(ids.Pose, { data: true }, 'Pose')}>
-            Pose mode
-          </button>
-          <button
-            className="btn sm"
-            disabled={!connected}
-            title="Reset the body tilt back to level"
-            onClick={() => {
-              setEuler({ roll: 0, pitch: 0, yaw: 0 })
-              cmd(SPORT_CMD.Euler, { x: 0, y: 0, z: 0 }, 'Level')
-            }}
-          >
-            Level
-          </button>
-        </div>
+        <button
+          className="btn sm ghost block"
+          disabled={!connected || !posing}
+          title="Bring the body back to level, staying in pose mode"
+          onClick={() => {
+            setEuler({ roll: 0, pitch: 0, yaw: 0 })
+            void cmd(SPORT_CMD.Euler, { x: 0, y: 0, z: 0 }, 'Level')
+          }}
+        >
+          Level the body
+        </button>
       </div>
 
       <div className="section">
