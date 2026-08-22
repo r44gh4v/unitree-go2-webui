@@ -270,10 +270,12 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   const emergencyStop = useCallback(() => {
     // Halt locomotion, then go compliant. Both fire-and-forget so neither waits
     // on the other, and both are sent even if the robot is mid-command.
+    // Damp goes out priority so it jumps the queue instead of waiting behind
+    // an in-flight gait; StopMove halts locomotion first.
     conn.sendNoReply(TOPICS.SPORT_MOD, SPORT_CMD.StopMove)
-    conn.sendNoReply(TOPICS.SPORT_MOD, SPORT_CMD.Damp)
+    conn.sendPriority(TOPICS.SPORT_MOD, SPORT_CMD.Damp)
     setArmed(false)
-    log('EMERGENCY STOP - sent StopMove + Damp')
+    log('EMERGENCY STOP - sent StopMove + priority Damp')
   }, [conn, log])
 
   const refreshMotionMode = useCallback(async () => {

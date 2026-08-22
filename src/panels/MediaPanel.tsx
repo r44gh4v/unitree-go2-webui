@@ -158,21 +158,32 @@ export default function MediaPanel() {
         <span className="track" />
       </label>
 
-      <button
-        className="btn block"
-        disabled={!connected}
-        title="Send the chosen colour and duration to the head light"
-        onClick={() =>
-          vui(
-            VUI_API.SET_COLOR,
-            flash ? { color, time: colorSeconds, flash_cycle: 1000 } : { color, time: colorSeconds },
-            'Set colour',
-          )
-        }
-      >
-        <LightIcon size={15} />
-        Set light to {color}
-      </button>
+      <div className="btn-row">
+        <button
+          className="btn"
+          style={{ flex: 1 }}
+          disabled={!connected}
+          title="Send the chosen colour and duration to the head light"
+          onClick={() =>
+            vui(
+              VUI_API.SET_COLOR,
+              flash ? { color, time: colorSeconds, flash_cycle: 1000 } : { color, time: colorSeconds },
+              'Set colour',
+            )
+          }
+        >
+          <LightIcon size={15} />
+          Set light to {color}
+        </button>
+        <button
+          className="btn ghost"
+          disabled={!connected}
+          title="Hand the head light back to the robot's own control"
+          onClick={() => vui(VUI_API.LED_OFF, {}, 'Release light')}
+        >
+          Release
+        </button>
+      </div>
 
       <div className="divider" />
       <p className="eyebrow icon-eyebrow"><SpeakerIcon size={14} /> Speaker</p>

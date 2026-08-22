@@ -7,7 +7,7 @@
 // JSON *string*, and responses are matched purely on header.identity.id.
 
 import { md5 } from 'js-md5'
-import { DATA_CHANNEL_TYPE, TOPICS } from './constants'
+import { API_STATUS_CODES, DATA_CHANNEL_TYPE, TOPICS } from './constants'
 import { lastServerInfo } from './serverInfo'
 import { decodeVoxelMesh, type VoxelMesh } from './voxel'
 
@@ -41,7 +41,7 @@ export interface ApiResponse {
 /** Parsed form of a request/response pair. Throws if the robot reported failure. */
 export function unwrapResponse<T = unknown>(res: ApiResponse): T {
   const code = res.data?.header?.status?.code
-  if (code !== undefined && code !== 0) throw new Error(`Robot returned status ${code}`)
+  if (code !== undefined && code !== 0) throw new Error(API_STATUS_CODES[code] ?? `Robot returned status ${code}`)
   const raw = res.data?.data
   if (raw === undefined || raw === '') return undefined as T
   if (typeof raw !== 'string') return raw as T
@@ -447,7 +447,11 @@ export class Go2Connection extends EventTarget {
       case DATA_CHANNEL_TYPE.HEARTBEAT:
         break
       case DATA_CHANNEL_TYPE.RTC_INNER_REQ:
-        if (isFileChunk && info) {
+        if (info?.req_type === 'rtt_probe_send_from_mechine') {
+          // The robot measures link latency with these; echo the payload back
+          // unchanged or the firmware thinks the connection is unhealthy.
+          this.sendRaw({ type: DATA_CHANNEL_TYPE.RTC_INNER_REQ, topic: '', data: info }, true)
+        } else if (isFileChunk && info) {
           this.handleFileChunk(info)
         } else {
           this.resolvePending(msg)
@@ -688,6 +692,16 @@ export class Go2Connection extends EventTarget {
   sendNoReply(topic: string, apiId: number, parameter?: unknown, quiet = false) {
     const { payload } = this.buildRequest(apiId, parameter, { policy: { priority: 0, noreply: true } })
     this.sendRaw({ type: DATA_CHANNEL_TYPE.MSG, topic, data: { ...payload, binary: [] } }, quiet)
+  }
+
+  /**
+   * A priority request: policy.priority = 1 makes the sport FSM jump the queue
+   * instead of waiting behind an in-flight gait or action - what a real
+   * emergency stop needs. Fire-and-forget.
+   */
+  sendPriority(topic: string, apiId: number, parameter?: unknown) {
+    const { payload } = this.buildRequest(apiId, parameter, { policy: { priority: 1 } })
+    this.sendRaw({ type: DATA_CHANNEL_TYPE.REQUEST, topic, data: payload })
   }
 
   /**

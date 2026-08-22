@@ -50,6 +50,7 @@ export const TOPICS = {
   AUDIO_HUB_PLAY_STATE: 'rt/audiohub/player/state',
   GAS_SENSOR: 'rt/gas_sensor',
   MOTION_SWITCHER: 'rt/api/motion_switcher/request',
+  RM_CON: 'rt/api/rm_con/request',
   ROBOT_STATE: 'rt/api/robot_state/request',
   GAS_SENSOR_REQ: 'rt/api/gas_sensor/request',
   USLAM_CMD: 'rt/uslam/client_command',
@@ -210,6 +211,9 @@ export const SPORT_CMD_MCF = {
   FrontPounce: 1032,
   GetState: 1034,
   Heart: 1036,
+  SwitchGait: 1011,
+  Wallow: 1021,
+  WalkStair: 1049,
   StaticWalk: 1061,
   TrotRun: 1062,
   EconomicGait: 1063,
@@ -223,6 +227,7 @@ export const SPORT_CMD_MCF = {
   ClassicWalk: 2049,
   BackStand: 2050,
   CrossStep: 2051,
+  RageMode: 2059,
   SetAutoRecovery: 2054,
   GetAutoRecovery: 2055,
   LeadFollow: 2056,
@@ -264,10 +269,11 @@ export const ACTIONS: ActionSpec[] = [
   { name: 'Content', label: 'Happy', ids: { normal: 1020, mcf: 1020 }, group: 'gesture', note: 'A short happy wiggle on the spot.' },
   { name: 'WiggleHips', label: 'Wiggle hips', ids: { normal: 1033 }, group: 'gesture', note: 'Sways the hips from side to side.' },
   { name: 'FingerHeart', label: 'Finger heart', ids: { normal: 1036, mcf: 1036 }, group: 'gesture', note: 'Makes a heart shape with the front paws.' },
+  { name: 'Trigger', label: 'Finger gun', ids: { normal: 1012 }, group: 'gesture', note: 'Points a finger-gun pose. Some firmware ignores it.' },
   { name: 'Scrape', label: 'Scrape', ids: { normal: 1029, mcf: 1029 }, group: 'gesture', note: 'Paws at the ground with a front leg.' },
   { name: 'Dance1', label: 'Dance 1', ids: { normal: 1022, mcf: 1022 }, group: 'gesture', risky: true, note: 'A short choreographed dance routine.' },
   { name: 'Dance2', label: 'Dance 2', ids: { normal: 1023, mcf: 1023 }, group: 'gesture', risky: true, note: 'A second, livelier dance routine.' },
-  { name: 'Wallow', label: 'Roll over', ids: { normal: 1021 }, group: 'gesture', risky: true, note: 'Rolls onto its back and rights itself. Needs clear floor space.' },
+  { name: 'Wallow', label: 'Roll over', ids: { normal: 1021, mcf: 1021 }, group: 'gesture', risky: true, note: 'Rolls onto its back and rights itself. Needs clear floor space.' },
 
   // gaits
   { name: 'EconomicGait', label: 'Economic gait', ids: { normal: 1035, mcf: 1063 }, group: 'gait', note: 'Energy-saving walk that stretches the battery.' },
@@ -276,10 +282,14 @@ export const ACTIONS: ActionSpec[] = [
   { name: 'TrotRun', label: 'Trot run', ids: { mcf: 1062 }, group: 'gait', note: 'Faster running trot.' },
   { name: 'ClassicWalk', label: 'Classic walk', ids: { mcf: 2049}, toggle: true, group: 'gait', note: 'The standard everyday walking gait.' },
   { name: 'FreeWalk', label: 'Free walk', ids: { ai: 1045, mcf: 2045}, toggle: true, group: 'gait', note: 'Picks its own footing over uneven ground.' },
+  { name: 'WalkStair', label: 'Stair mode', ids: { ai: 1049, mcf: 1049 }, toggle: true, group: 'gait', note: 'Climbing mode for stairs and tall obstacles. Approach steps straight on.' },
+  { name: 'GaitStairsUp', label: 'Stairs up gait', ids: { normal: 1011, mcf: 1011 }, parameter: { data: 3 }, group: 'gait', note: 'Classic stair gait, facing up the steps.' },
+  { name: 'GaitStairsDown', label: 'Stairs down gait', ids: { normal: 1011, mcf: 1011 }, parameter: { data: 4 }, group: 'gait', note: 'Classic stair gait for walking back down, tail first.' },
   { name: 'CrossStep', label: 'Cross step', ids: { ai: 1302, mcf: 2051}, toggle: true, group: 'gait', risky: true, note: 'Crosses the legs while stepping sideways.' },
   { name: 'MoonWalk', label: 'Moon walk', ids: { ai: 1305}, toggle: true, group: 'gait', risky: true, note: 'Slides backwards in a moonwalk.' },
   { name: 'OnesidedStep', label: 'One-sided step', ids: { ai: 1303}, toggle: true, group: 'gait', risky: true, note: 'Steps using the legs on one side only.' },
   { name: 'Bound', label: 'Bound', ids: { ai: 1304}, toggle: true, group: 'gait', risky: true, note: 'Hops with the front and back legs paired.' },
+  { name: 'RageMode', label: 'Rage mode', ids: { mcf: 2059 }, toggle: true, group: 'gait', risky: true, note: 'Fast, aggressive running mode. Needs a lot of open space.' },
   { name: 'FreeBound', label: 'Free bound', ids: { mcf: 2046}, toggle: true, group: 'gait', risky: true, note: 'Bounding gait that adapts to rough ground.' },
   { name: 'LeadFollow', label: 'Lead / follow', ids: { ai: 1045, mcf: 2056}, toggle: true, group: 'gait', note: 'Walks alongside and follows a person.' },
 
@@ -314,7 +324,7 @@ export const SPORT_QUERIES = [
 
 // ---- motion switcher ----
 
-export const MOTION_SWITCHER_API = { GET_MODE: 1001, SET_MODE: 1002, RELEASE_MODE: 1003 } as const
+export const MOTION_SWITCHER_API = { GET_MODE: 1001, SET_MODE: 1002, RELEASE_MODE: 1003, SET_SILENT: 1004, GET_SILENT: 1005 } as const
 
 export const MOTION_MODE_OPTIONS: { value: string; label: string; note: string }[] = [
   { value: 'normal', label: 'Normal', note: 'Standard walking and gestures. Required for most commands.' },
@@ -325,11 +335,14 @@ export const MOTION_MODE_OPTIONS: { value: string; label: string; note: string }
 // ---- vui: lights and volume ----
 
 export const VUI_API = {
+  SET_SWITCH: 1001,
+  GET_SWITCH: 1002,
   SET_VOLUME: 1003,
   GET_VOLUME: 1004,
   SET_BRIGHTNESS: 1005,
   GET_BRIGHTNESS: 1006,
   SET_COLOR: 1007,
+  LED_OFF: 1008,
 } as const
 
 export const VUI_COLORS = ['white', 'red', 'yellow', 'blue', 'green', 'cyan', 'purple'] as const
@@ -431,13 +444,59 @@ export const ERROR_CODES: Record<string, string> = {
   '600_8': 'Low battery software protection',
 }
 
+// Firmware also reports per-motor faults on sources 301-399 and 3000-3999,
+// and the battery on 700; all reuse source 300's bit catalogue.
+const ERROR_SOURCES_EXTRA: Record<string, string> = {
+  '700': 'Battery',
+}
+
+// Codes that only appear on the wheeled Go2-W, in the motor 300 range.
+const ERROR_CODES_WHEEL: Record<string, string> = {
+  '300_40': 'Calibration data abnormal',
+  '300_80': 'Abnormal reset',
+}
+
 export function describeError(source: number | string, code: number): { source: string; text: string } {
   const src = String(source)
+  const n = Number(src)
   const hex = code.toString(16).toUpperCase()
-  return {
-    source: ERROR_SOURCES[src] ?? `Source ${src}`,
-    text: ERROR_CODES[`${src}_${hex}`] ?? `Unknown code ${src}-${hex}`,
+
+  // Per-motor sources map back onto the motor bit catalogue (source 300).
+  let label = ERROR_SOURCES[src] ?? ERROR_SOURCES_EXTRA[src]
+  let catalogue = src
+  if (!label && n >= 301 && n <= 399) {
+    label = `Motor ${n - 300}`
+    catalogue = '300'
+  } else if (!label && n >= 3000 && n <= 3999) {
+    label = `Motor ${n % 100}`
+    catalogue = '300'
   }
+
+  return {
+    source: label ?? `Source ${src}`,
+    text: ERROR_CODES[`${catalogue}_${hex}`] ?? ERROR_CODES_WHEEL[`${catalogue}_${hex}`] ?? `Unknown code ${src}-${hex}`,
+  }
+}
+
+/**
+ * The status codes a robot returns on an api response header (distinct from the
+ * hardware fault codes above). Used to explain a failed request instead of just
+ * echoing the number. Transcribed from legion1581/go2_python_sdk
+ * (DDS_ERROR_DESCRIPTIONS).
+ */
+export const API_STATUS_CODES: Record<number, string> = {
+  3001: 'Request sent but no response',
+  3102: 'Request rejected: another client holds the lease',
+  3103: 'API not registered on the robot',
+  3104: 'Request timed out',
+  3107: 'Invalid lease',
+  3201: 'Response error',
+  3202: 'Internal server error',
+  3203: 'API not implemented on this firmware',
+  3204: 'Parameter error',
+  3205: 'Request rejected',
+  3206: 'Invalid lease',
+  3207: 'A lease already exists',
 }
 
 // ---- motor layout ----
