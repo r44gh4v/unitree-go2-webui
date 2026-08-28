@@ -1086,15 +1086,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
   color: var(--danger);
   background: var(--surface);
 }
-.btn.action.failed::after {
-  content: "";
-  position: absolute;
-  top: 5px;
-  left: 5px;
-  width: 6px;
-  height: 6px;
-  background: var(--danger);
-}
+.btn.action.failed .action-label { font-weight: 650; }
 
 /* Not offered: the command does not exist in the motion service the robot is
    running. Kept visible and legible - hiding these is what made half the

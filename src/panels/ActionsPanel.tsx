@@ -10,6 +10,14 @@ const FAIL_MS = 5000
 type Phase = 'idle' | 'pending' | 'on' | 'failed'
 
 /**
+ * Actions that put the robot back to a plain standing or resting state. Any of
+ * them ends whatever gait or mode was running, so every lit toggle has to go
+ * out with them - otherwise a tile stays lit for something the robot stopped
+ * doing, which is what made them look stuck.
+ */
+const CLEARS_EVERYTHING = new Set(['StopMove', 'Damp', 'StandDown', 'Sit', 'RecoveryStand', 'BalanceStand', 'StandUp'])
+
+/**
  * Tooltip text: what the action does, then whatever the operator needs to know
  * before pressing it, and the api id last for anyone reading the protocol.
  */
@@ -69,7 +77,11 @@ export default function ActionsPanel() {
     setPhase((p) => ({ ...p, [a.name]: 'pending' }))
     runAction(a, next)
       .then(() => {
-        if (!a.toggle) {
+        if (CLEARS_EVERYTHING.has(a.name)) {
+          // Back to standing or resting: nothing is running any more.
+          setPhase({})
+          setPosing(false)
+        } else if (!a.toggle) {
           // A one-shot has no lasting state to show; it just goes quiet again.
           settle(a.name, 'idle')
         } else if (a.exclusive && next) {
@@ -154,6 +166,11 @@ export default function ActionsPanel() {
                     aria-busy={p === 'pending' || undefined}
                     disabled={!connected || unavailable || p === 'pending'}
                     title={describe(a, resolved, motionMode, p, reason[a.name])}
+                    // Clicking a tile left the focus ring on it afterwards, so
+                    // a pressed action looked stuck. Suppressing focus on
+                    // pointer press keeps the ring for Tab, where it is needed,
+                    // and off the mouse, where it only reads as stuck.
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => fire(a)}
                   >
                     {p === 'pending' && <span className="action-busy" />}

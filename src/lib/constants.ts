@@ -288,9 +288,8 @@ export const ACTIONS: ActionSpec[] = [
   { name: 'RageMode', label: 'Sprint', ids: { mcf: 2059 }, toggle: true, exclusive: true, group: 'gait', risky: true, note: 'Fastest running mode. Needs a lot of open space.' },
   { name: 'WalkStair', label: 'Stair climbing', ids: { mcf: 1049 }, toggle: true, exclusive: true, group: 'gait', note: 'For stairs and tall obstacles. Approach steps straight on.' },
   { name: 'CrossStep', label: 'Crossover step', ids: { advanced: 1302, mcf: 2051 }, toggle: true, exclusive: true, group: 'gait', risky: true, note: 'Crosses the legs while stepping sideways' },
-  { name: 'OnesidedStep', label: 'Side step', ids: { advanced: 1303 }, toggle: true, exclusive: true, group: 'gait', risky: true, note: 'Steps using the legs on one side only' },
-  { name: 'Bound', label: 'Hop', ids: { advanced: 1304 }, toggle: true, exclusive: true, group: 'gait', risky: true, note: 'Hops with the front and back legs paired' },
   { name: 'FreeBound', label: 'Terrain hop', ids: { mcf: 2046 }, toggle: true, exclusive: true, group: 'gait', risky: true, note: 'Bounding gait that adapts to rough ground' },
+  { name: 'FreeJump', label: 'Auto jump', ids: { mcf: 2047 }, toggle: true, exclusive: true, group: 'gait', risky: true, note: 'Keeps walking and jumps obstacles it spots by itself' },
   { name: 'EconomicGait', label: 'Battery saver', ids: { normal: 1035, mcf: 1063 }, toggle: true, group: 'gait', note: 'Energy-saving walk that stretches the battery' },
   { name: 'ContinuousGait', label: 'March', ids: { normal: 1019, mcf: 1019 }, toggle: true, group: 'gait', note: 'Keeps stepping instead of standing still' },
 
@@ -301,16 +300,13 @@ export const ACTIONS: ActionSpec[] = [
   { name: 'Scrape', label: 'Paw ground', ids: { normal: 1029, mcf: 1029 }, group: 'gesture', note: 'Scrapes at the floor with a front leg' },
   { name: 'Dance1', label: 'Dance one', ids: { normal: 1022, mcf: 1022 }, group: 'gesture', risky: true, note: 'A short choreographed routine' },
   { name: 'Dance2', label: 'Dance two', ids: { normal: 1023, mcf: 1023 }, group: 'gesture', risky: true, note: 'A second, livelier routine' },
-  { name: 'Wallow', label: 'Roll over', ids: { normal: 1021, mcf: 1021 }, group: 'gesture', risky: true, note: 'Rolls onto its back and rights itself. Needs clear floor.' },
 
   // jumps and flips - all need space
   { name: 'FrontJump', label: 'Jump forward', ids: { normal: 1031, mcf: 1031 }, group: 'dynamic', risky: true, note: 'Jumps forward. Needs clear space ahead.' },
   { name: 'FrontPounce', label: 'Pounce', ids: { normal: 1032, mcf: 1032 }, group: 'dynamic', risky: true, note: 'Lunges forward. Needs clear space ahead.' },
-  { name: 'FreeJump', label: 'Auto jump', ids: { mcf: 2047 }, toggle: true, group: 'dynamic', risky: true, note: 'Jumps over obstacles it spots by itself' },
   { name: 'FrontFlip', label: 'Front flip', ids: { normal: 1030, mcf: 1030 }, parameter: { data: true }, group: 'dynamic', risky: true, note: 'Needs clear space and a soft floor' },
   { name: 'BackFlip', label: 'Back flip', ids: { ai: 1044, mcf: 2043 }, parameter: { data: true }, group: 'dynamic', risky: true, note: 'Needs clear space and a soft floor' },
   { name: 'LeftFlip', label: 'Left flip', ids: { ai: 1042, mcf: 2041 }, parameter: { data: true }, group: 'dynamic', risky: true, note: 'Sideways flip. Needs clear space and a soft floor.' },
-  { name: 'RightFlip', label: 'Right flip', ids: { ai: 1043 }, parameter: { data: true }, group: 'dynamic', risky: true, note: 'Sideways flip. Needs clear space and a soft floor.' },
   { name: 'Handstand', label: 'Handstand', ids: { ai: 1039, advanced: 1301, mcf: 2044 }, toggle: true, group: 'dynamic', risky: true, note: 'Balances on the front legs, hind legs in the air. Press again to come down.' },
   { name: 'BackStand', label: 'Hind stand', ids: { mcf: 2050 }, toggle: true, group: 'dynamic', risky: true, note: 'Rears up onto the back legs, front paws in the air. The opposite of a handstand.' },
 
