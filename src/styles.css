@@ -35,8 +35,8 @@
   /* One warm-technical family for both roles; the system stack takes over
      cleanly when there is no internet (robot hotspot mode). Mono is reserved
      for protocol text, code, and keys - numbers use tabular figures instead. */
-  --sans: "IBM Plex Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  --sans: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
   /* The only letter-spacing in the interface: uppercase micro-labels need a
      little air; everything else keeps the font's own metrics. */
   --track: 0.08em;
@@ -69,7 +69,7 @@ button { font: inherit; color: inherit; }
 .app {
   height: 100%;
   display: grid;
-  grid-template-rows: 1fr 26px;
+  grid-template-rows: auto 1fr;
   overflow: hidden;
 }
 
@@ -1204,3 +1204,78 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
   letter-spacing: 0.04em;
   text-transform: lowercase;
 }
+
+/* ---------- rail ---------- */
+
+/* The stop, the link state, and the readings worth having in front of you on
+   every tab. Built from the same surface, line and pill the panels use, so it
+   reads as part of the console rather than a strip bolted to the top of it. */
+.rail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line-strong);
+}
+.rail .estop { flex: none; width: 112px; }
+.rail .pill { flex: none; }
+.rail .chip { flex: none; }
+
+.rail-where {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+/* A row of small gauges: quiet label above, the measurement below it. Hairline
+   separated so they read as one instrument rather than seven chips. */
+.rail-readings { display: flex; align-items: stretch; margin-left: 2px; }
+.reading {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding: 1px 12px;
+  border-left: 1px solid var(--line);
+  min-width: 60px;
+}
+.reading:first-child { border-left: none; padding-left: 4px; }
+.reading-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: var(--track);
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.reading-value {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-strong);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.reading-value small { font-family: var(--sans); font-size: 10px; font-weight: 500; color: var(--muted); }
+.reading.warn .reading-value { color: var(--warn); }
+.reading.bad .reading-value { color: var(--danger); font-weight: 700; }
+
+.rail .hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  flex: none;
+}
+
+/* Narrow windows drop the least load-bearing parts first. */
+@media (max-width: 1500px) { .rail .hint { display: none; } }
+@media (max-width: 1240px) { .rail-where { display: none; } }

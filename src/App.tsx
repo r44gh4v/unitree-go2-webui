@@ -3,7 +3,9 @@ import AuthGate from './components/AuthGate'
 import { RobotProvider, useRobot } from './state/RobotContext'
 import Split from './components/Split'
 import CameraPanel from './components/CameraPanel'
-import { StopIcon } from './components/Icons'
+import { AlertIcon, StopIcon } from './components/Icons'
+import { MODE_NAMES } from './lib/types'
+import { GAITS } from './lib/constants'
 import ConnectPanel from './panels/ConnectPanel'
 import DrivePanel from './panels/DrivePanel'
 import StatusPanel from './panels/StatusPanel'
@@ -27,10 +29,37 @@ const TABS = [
   { key: 'console', label: 'Console', title: 'Send any command by hand and watch the wire', Panel: ConsolePanel },
 ] as const
 
-/** Sits above the drive controls so the stop is always one click away. */
-function StopBar() {
-  const { emergencyStop, connState } = useRobot()
+function num(v: unknown, digits = 2): string {
+  return typeof v === 'number' && Number.isFinite(v) ? v.toFixed(digits) : '-'
+}
+
+function Reading({ label, value, unit, tone }: { label: string; value: string; unit?: string; tone?: string }) {
+  return (
+    <div className={`reading${tone ? ` ${tone}` : ''}`}>
+      <span className="reading-label">{label}</span>
+      <span className="reading-value">
+        {value}
+        {unit && <small> {unit}</small>}
+      </span>
+    </div>
+  )
+}
+
+/**
+ * Runs across the top: the stop, whether the robot is there, and the handful of
+ * numbers that decide whether it is safe to keep going. These used to be split
+ * between the footer and the Status panel, which meant the battery was only
+ * visible while the Status tab happened to be open.
+ */
+function Rail() {
+  const { emergencyStop, connState, connError, ip, lowState, sportState, robotErrors, linkStats } = useRobot()
   const connected = connState === 'connected'
+  const soc = lowState?.bms_state?.soc
+  const faults = robotErrors.filter((e) => !e.cleared).length
+  const vel = sportState?.velocity
+  const speed = vel ? Math.hypot(vel[0] ?? 0, vel[1] ?? 0) : null
+  const motors = Array.isArray(lowState?.motor_state) ? lowState!.motor_state! : []
+  const hottest = motors.reduce((m, x) => Math.max(m, typeof x.temperature === 'number' ? x.temperature : 0), 0)
 
   // Escape is the panic key and works even while typing.
   useEffect(() => {
@@ -44,41 +73,58 @@ function StopBar() {
     return () => window.removeEventListener('keydown', onKey)
   }, [connected, emergencyStop])
 
+  const badge =
+    connState === 'connected' ? 'Linked'
+      : connState === 'connecting' ? 'Connecting'
+        : connState === 'validating' ? 'Verifying'
+          : connState === 'error' ? 'Failed'
+            : 'Offline'
+
   return (
-    <div className="stopbar">
+    <header className="rail">
       <button className="estop" onClick={emergencyStop} disabled={!connected} title="Stop the robot (Esc)">
         <StopIcon size={15} />
         STOP
       </button>
-    </div>
-  )
-}
 
-function Footer() {
-  // Connection state lives in the top-left banner; the footer stays out of its
-  // way and carries only the at-a-glance link vitals and key hints.
-  const { connState, linkStats, lowState } = useRobot()
-  const soc = lowState?.bms_state?.soc
-  const connected = connState === 'connected'
-
-  return (
-    <footer className="footer">
-      <span className="hint">
-        <kbd>Esc</kbd> stop · <kbd>WASD</kbd> walk · <kbd>QE</kbd> turn
+      <span className={`pill pill-${connState}`} title={connState === 'error' ? (connError ?? undefined) : undefined}>
+        {badge}
       </span>
+      {connected && <span className="rail-where">{ip}</span>}
+
+      <div className="rail-readings">
+        <Reading
+          label="Battery"
+          value={typeof soc === 'number' ? String(soc) : '-'}
+          unit="%"
+          tone={typeof soc === 'number' ? (soc < 15 ? 'bad' : soc < 30 ? 'warn' : undefined) : undefined}
+        />
+        <Reading label="Speed" value={num(speed)} unit="m/s" />
+        <Reading label="Posture" value={sportState?.mode !== undefined ? (MODE_NAMES[sportState.mode] ?? String(sportState.mode)) : '-'} />
+        <Reading label="Gait" value={GAITS.find((g) => g.value === sportState?.gait_type)?.label ?? '-'} />
+        <Reading label="Height" value={num(sportState?.body_height)} unit="m" />
+        <Reading
+          label="Hottest joint"
+          value={hottest ? String(Math.round(hottest)) : '-'}
+          unit="°C"
+          tone={hottest > 80 ? 'bad' : hottest > 65 ? 'warn' : undefined}
+        />
+        <Reading label="Messages" value={connected ? String(linkStats.rate) : '-'} unit="/s" />
+      </div>
 
       <div style={{ flex: 1 }} />
 
-      {connected && typeof soc === 'number' && (
-        <span className={`pill pill-${soc < 15 ? 'error' : soc < 30 ? 'warn' : 'connected'}`}>{soc}%</span>
-      )}
-
-      {connected && (
-        <span title={`${linkStats.messages.toLocaleString()} messages · ${(linkStats.bytes / 1024 / 1024).toFixed(1)} MB total`}>
-          <b>{linkStats.rate}</b> msg/s
+      {faults > 0 && (
+        <span className="chip warn" title="Faults are listed in full on the Status panel">
+          <AlertIcon size={13} />
+          {faults} fault{faults === 1 ? '' : 's'}
         </span>
       )}
-    </footer>
+
+      <span className="hint">
+        <kbd>Esc</kbd> stop · <kbd>WASD</kbd> walk · <kbd>QE</kbd> turn
+      </span>
+    </header>
   )
 }
 
@@ -137,11 +183,11 @@ function Workspace() {
   return (
     <div className="app">
       <FaultToasts />
+      <Rail />
       <div className="main">
         <Split direction="vertical" initial={300} min={240} max={480} storageKey="go2.split.left">
           {/* controls: what you touch constantly */}
           <div className="column" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <StopBar />
             <div className="scroll">
               <ConnectPanel />
               <DrivePanel />
@@ -175,8 +221,6 @@ function Workspace() {
           </Split>
         </Split>
       </div>
-
-      <Footer />
     </div>
   )
 }
