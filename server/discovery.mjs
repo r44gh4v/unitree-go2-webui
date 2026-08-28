@@ -82,30 +82,59 @@ export function probePort(ip, port, timeoutMs) {
   })
 }
 
-/** Candidate subnets: every non-internal IPv4 interface, plus the robot's own AP. */
-function localSubnets() {
-  const nets = []
+const toInt = (ip) => ip.split('.').reduce((n, o) => (n << 8 >>> 0) + Number(o), 0) >>> 0
+const toIp = (n) => [24, 16, 8, 0].map((s) => (n >>> s) & 255).join('.')
+
+/**
+ * Widest sweep we will attempt. A /24 is 254 hosts; some home routers hand out
+ * a /19, which is 8190. Beyond this the sweep costs more than it is worth and
+ * the address is better typed in.
+ */
+const MAX_SWEEP_HOSTS = 8192
+
+/**
+ * Addresses worth probing, in the order worth probing them: this machine's own
+ * /24 first because that is where the robot almost always is, then the rest of
+ * the real subnet if the interface is wider than a /24, then the robot's own AP.
+ *
+ * The netmask matters. Assuming a /24 is what made discovery come up empty on a
+ * /19 network - the robot was three octets away and simply never scanned.
+ */
+function candidateAddresses() {
+  const near = []
+  const far = []
   for (const addrs of Object.values(os.networkInterfaces())) {
     for (const a of addrs ?? []) {
-      if (a.family === 'IPv4' && !a.internal) {
-        nets.push(a.address.split('.').slice(0, 3).join('.'))
+      if (a.family !== 'IPv4' || a.internal) continue
+      const self = toInt(a.address)
+      const mask = toInt(a.netmask ?? '255.255.255.0')
+      const network = (self & mask) >>> 0
+      const size = (~mask >>> 0) + 1
+
+      const ownPrefix = a.address.split('.').slice(0, 3).join('.')
+      for (let h = 1; h < 255; h++) near.push(`${ownPrefix}.${h}`)
+
+      if (size > 256 && size <= MAX_SWEEP_HOSTS) {
+        for (let i = 1; i < size - 1; i++) {
+          const ip = toIp((network + i) >>> 0)
+          if (!ip.startsWith(`${ownPrefix}.`)) far.push(ip)
+        }
       }
     }
   }
-  if (!nets.includes('192.168.12')) nets.push('192.168.12') // robot AP mode
-  return [...new Set(nets)]
+  for (let h = 1; h < 255; h++) far.push(`192.168.12.${h}`) // robot AP mode
+  return [...new Set([...near, ...far])]
 }
 
-/** Sweep the local /24s for hosts with a Go2 signaling port open. */
+/** Sweep the reachable address space for hosts with a Go2 signaling port open. */
 async function portScan(timeoutMs) {
   const found = []
   const deadline = Date.now() + timeoutMs
-  const targets = []
-  for (const subnet of localSubnets()) {
-    for (let host = 1; host < 255; host++) targets.push(`${subnet}.${host}`)
-  }
+  const targets = candidateAddresses()
 
-  const CONCURRENCY = 64
+  // A wide subnet is only searchable in the time available with a lot of
+  // sockets in flight; the probes are short-lived and mostly time out.
+  const CONCURRENCY = 256
   let cursor = 0
   const workers = Array.from({ length: CONCURRENCY }, async () => {
     while (cursor < targets.length && Date.now() < deadline) {

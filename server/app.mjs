@@ -108,7 +108,9 @@ export function createApp() {
       return
     }
     try {
-      const robots = await discoverRobots(4000)
+      // An explicit Scan is user-initiated and worth waiting for: a wide
+      // subnet cannot be swept in the few seconds a background probe gets.
+      const robots = await discoverRobots(15000)
       res.json({ robots })
     } catch (err) {
       res.status(500).json({ error: String(err?.message ?? err), robots: [] })
