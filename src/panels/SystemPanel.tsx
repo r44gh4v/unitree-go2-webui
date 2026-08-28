@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRobot } from '../state/RobotContext'
 import { unwrapResponse } from '../lib/go2'
-import { BASHRUNNER_API, BASH_SCRIPTS, ROBOT_STATE_API, TOPICS } from '../lib/constants'
+import {
+  BASHRUNNER_API, BASH_SCRIPTS, MOTION_SWITCHER_API, RM_CON_API, ROBOT_STATE_API,
+  SPORT_CMD, SPORT_CMD_MCF, TOPICS, UWB_API, VUI_API,
+} from '../lib/constants'
 import { TerminalIcon } from '../components/Icons'
 
 interface ServiceEntry {
@@ -21,6 +24,96 @@ interface MultipleState {
   volume?: number
 }
 
+/**
+ * Robot-wide settings the phone app also carries, and that this link can
+ * genuinely reach. Anything the app does over Bluetooth rather than over the
+ * data channel - the Wi-Fi name and password above all - is not here, because
+ * no api exists for it.
+ */
+interface SettingSpec {
+  key: string
+  label: string
+  note: string
+  topic: string
+  setId: number
+  getId?: number
+  /** builds the write payload; the read side is handled per setting below */
+  write: (on: boolean) => unknown
+  /** pulls the boolean out of whatever shape the getter answers with */
+  read?: (v: unknown) => boolean | undefined
+  mcfOnly?: boolean
+}
+
+const asBool = (v: unknown): boolean | undefined => {
+  if (typeof v === 'boolean') return v
+  if (typeof v === 'number') return v !== 0
+  return undefined
+}
+
+const SETTINGS: SettingSpec[] = [
+  {
+    key: 'autoRecovery',
+    label: 'Get up automatically after a fall',
+    note: 'The robot rights itself without being asked. Unified firmware only.',
+    topic: TOPICS.SPORT_MOD,
+    setId: SPORT_CMD_MCF.SetAutoRecovery,
+    getId: SPORT_CMD_MCF.GetAutoRecovery,
+    write: (on) => ({ data: on }),
+    read: (v) => asBool((v as { data?: unknown })?.data ?? v),
+    mcfOnly: true,
+  },
+  {
+    key: 'joystick',
+    label: 'Handheld remote enabled',
+    note: 'Turns the physical controller on or off. Reported unreliable on some firmware.',
+    topic: TOPICS.SPORT_MOD,
+    setId: SPORT_CMD.SwitchJoystick,
+    write: (on) => ({ data: on }),
+  },
+  {
+    key: 'voice',
+    label: 'Voice assistant',
+    note: 'Master switch for the voice UI. Turning it off also silences spoken feedback.',
+    topic: TOPICS.VUI,
+    setId: VUI_API.SET_SWITCH,
+    getId: VUI_API.GET_SWITCH,
+    write: (on) => ({ enable: on ? 1 : 0 }),
+    read: (v) => asBool((v as { enable?: unknown })?.enable),
+  },
+  {
+    key: 'remotePermission',
+    label: 'Allow connections over the internet',
+    note: 'Whether the robot accepts cloud-relayed connections at all.',
+    topic: TOPICS.RM_CON,
+    setId: RM_CON_API.SET_PERMISSION,
+    getId: RM_CON_API.GET_PERMISSION,
+    // This one is not a boolean on the wire: 2 allows, 1 forbids.
+    write: (on) => ({ enable_status: on ? 2 : 1 }),
+    read: (v) => {
+      const n = (v as { enable_status?: unknown })?.enable_status
+      return typeof n === 'number' ? n === 2 : undefined
+    },
+  },
+  {
+    key: 'silent',
+    label: 'Silent start',
+    note: 'Do not start the motion service automatically at boot.',
+    topic: TOPICS.MOTION_SWITCHER,
+    setId: MOTION_SWITCHER_API.SET_SILENT,
+    getId: MOTION_SWITCHER_API.GET_SILENT,
+    write: (on) => ({ silent: on }),
+    read: (v) => asBool((v as { silent?: unknown })?.silent),
+  },
+  {
+    key: 'uwb',
+    label: 'UWB tag following',
+    note: 'Only does anything when the ultra-wideband tag accessory is fitted.',
+    topic: TOPICS.UWB_REQ,
+    setId: UWB_API.SWITCH,
+    write: (on) => ({ enable: on ? 1 : 0 }),
+  },
+]
+
 /** Some state topics arrive as a JSON string inside the message rather than an object. */
 function decodeMaybeString<T>(value: unknown): T | null {
   if (value == null) return null
@@ -36,7 +129,7 @@ function decodeMaybeString<T>(value: unknown): T | null {
 
 /** Services, firmware details, and the on-board script runner. */
 export default function SystemPanel() {
-  const { conn, connState, log } = useRobot()
+  const { conn, connState, ip, motionMode, log } = useRobot()
   const connected = connState === 'connected'
 
   const [services, setServices] = useState<ServiceEntry[] | null>(null)
@@ -49,6 +142,8 @@ export default function SystemPanel() {
   const [selfTest, setSelfTest] = useState<unknown[]>([])
   const [lidarState, setLidarState] = useState<unknown>(null)
 
+  const [settings, setSettings] = useState<Record<string, boolean | undefined>>({})
+  const [settingsError, setSettingsError] = useState<string | null>(null)
   const [scriptOut, setScriptOut] = useState<Record<string, string>>({})
   const [running, setRunning] = useState<string | null>(null)
   const [showRisky, setShowRisky] = useState(false)
@@ -97,6 +192,41 @@ export default function SystemPanel() {
       reportTimer.current = null
     }
   }, [connected, conn, log])
+
+  // Read back everything that offers a getter. A setting with no getter stays
+  // undefined and says "not read" rather than defaulting to off and lying.
+  useEffect(() => {
+    if (!connected) {
+      setSettings({})
+      return
+    }
+    let cancelled = false
+    for (const s of SETTINGS) {
+      if (!s.getId || !s.read || (s.mcfOnly && motionMode !== 'mcf')) continue
+      conn
+        .request(s.topic, s.getId)
+        .then((res) => {
+          if (cancelled) return
+          const value = s.read!(unwrapResponse(res))
+          if (value !== undefined) setSettings((p) => ({ ...p, [s.key]: value }))
+        })
+        .catch(() => undefined)
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [connected, conn, motionMode])
+
+  const applySetting = async (s: SettingSpec, next: boolean) => {
+    setSettingsError(null)
+    try {
+      await conn.request(s.topic, s.setId, s.write(next))
+      setSettings((p) => ({ ...p, [s.key]: next }))
+      log(`${s.label}: ${next ? 'on' : 'off'}`)
+    } catch (e) {
+      setSettingsError(`${s.label}: ${(e as Error).message}`)
+    }
+  }
 
   const runScript = async (script: string) => {
     setRunning(script)
@@ -177,6 +307,68 @@ export default function SystemPanel() {
       )}
 
       <div className="divider" />
+      <p className="eyebrow">Robot settings</p>
+      <p className="note">
+        Settings the phone app also exposes. Each is read from the robot where it offers a getter, and left unknown
+        rather than guessed where it does not.
+      </p>
+      {SETTINGS.filter((s) => !s.mcfOnly || motionMode === 'mcf').map((s) => {
+        const state = settings[s.key]
+        return (
+          <label
+            key={s.key}
+            className={`toggle${state ? ' on' : ''}`}
+            style={{ marginTop: 6 }}
+            title={s.note}
+          >
+            <span className="toggle-label">
+              {s.label}
+              {state === undefined && <span style={{ color: 'var(--faint)', fontSize: 11 }}>not read</span>}
+            </span>
+            <input
+              type="checkbox"
+              checked={!!state}
+              onChange={(e) => void applySetting(s, e.target.checked)}
+              style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
+            />
+            <span className="track" />
+          </label>
+        )
+      })}
+      {settingsError && (
+        <p className="note warn" role="alert">
+          {settingsError}
+        </p>
+      )}
+
+      <div className="divider" />
+      <p className="eyebrow">Network</p>
+      <p className="note">
+        The robot reports addresses but never the network name. Wi-Fi is changed from the phone app over Bluetooth.
+      </p>
+      <dl className="kv">
+        <dt>Reached at</dt>
+        <dd>{ip || '-'}</dd>
+        <dt>Route</dt>
+        <dd>{ip === '192.168.12.1' ? 'Robot hotspot' : 'Shared network or relay'}</dd>
+      </dl>
+      <button
+        className="btn sm block"
+        style={{ justifyContent: 'space-between' }}
+        disabled={running !== null}
+        title="Ask the robot which addresses its wlan0, wlan1 and eth0 interfaces hold"
+        onClick={() => void runScript('get_ip_address.sh')}
+      >
+        <span>Read the robot's addresses</span>
+        <span style={{ fontSize: 10, color: 'var(--muted)' }}>{running === 'get_ip_address.sh' ? '…' : ''}</span>
+      </button>
+      {scriptOut['get_ip_address.sh'] && (
+        <pre className="log" style={{ maxHeight: 120, marginTop: 4 }}>
+          {scriptOut['get_ip_address.sh']}
+        </pre>
+      )}
+
+      <div className="divider" />
       <p className="eyebrow">Services</p>
       {services === null ? (
         <p className="note">Asking the robot for its service list…</p>
@@ -217,12 +409,12 @@ export default function SystemPanel() {
           {svcError}
         </p>
       )}
-      <p className="note">Protected services cannot be switched off. Stopping a motion service disables driving.</p>
+      <p className="note">Stopping a motion service disables driving.</p>
 
       <div className="divider" />
       <p className="eyebrow">Robot information</p>
       <p className="note">
-        These read values from the robot by running one of its built-in scripts. It is a fixed menu, not a shell.
+        Runs one of the robot's built-in scripts. A fixed menu, not a shell.
       </p>
 
       {visibleScripts.map((s) => (
@@ -302,7 +494,7 @@ export default function SystemPanel() {
           Traffic saving: {trafficError}
         </p>
       )}
-      <p className="note">Turn on full bandwidth before streaming the lidar; leave it saving otherwise.</p>
+      <p className="note">Full bandwidth before the lidar, saving otherwise.</p>
     </div>
   )
 }

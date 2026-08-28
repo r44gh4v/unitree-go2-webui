@@ -15,6 +15,7 @@ import type { LowState, RobotError, SportModeState } from '../lib/types'
 const TRAFFIC_LIMIT = 500
 const UI_FLUSH_MS = 150
 
+
 export interface RobotApi {
   conn: Go2Connection
   connState: ConnState
@@ -27,11 +28,12 @@ export interface RobotApi {
   stream: MediaStream | null
   videoOn: boolean
   audioOn: boolean
-  armed: boolean
+  /** while true the drive sticks lean the body instead of walking it */
+  posing: boolean
   motionMode: MotionMode
   reportedMode: string | null
   linkStats: { messages: number; bytes: number; topics: number; rate: number }
-  setArmed: (v: boolean) => void
+  setPosing: (v: boolean) => void
   setMotionMode: (m: MotionMode) => void
   connect: (opts: ConnectOptions) => Promise<void>
   /** re-run the last connect attempt, or null if there hasn't been one */
@@ -44,6 +46,8 @@ export interface RobotApi {
   sport: (apiId: number, parameter?: unknown) => Promise<ApiResponse>
   runAction: (a: ActionSpec, toggleOn?: boolean) => Promise<ApiResponse>
   move: (x: number, y: number, z: number) => void
+  /** body attitude in radians; only obeyed while the robot is in pose mode */
+  setEuler: (roll: number, pitch: number, yaw: number) => void
   stopMove: () => void
   emergencyStop: () => void
   refreshMotionMode: () => Promise<string | null>
@@ -76,7 +80,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [videoOn, setVideoOnState] = useState(false)
   const [audioOn, setAudioOnState] = useState(false)
-  const [armed, setArmed] = useState(false)
+  const [posing, setPosing] = useState(false)
   const [motionMode, setMotionMode] = useState<MotionMode>('normal')
   const [reportedMode, setReportedMode] = useState<string | null>(null)
   const [linkStats, setLinkStats] = useState({ messages: 0, bytes: 0, topics: 0, rate: 0 })
@@ -95,11 +99,18 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       const d = (e as CustomEvent).detail as { state: ConnState; error?: string }
       setConnState(d.state)
       setConnError(d.error ?? null)
-      if (d.state === 'connected') setIp(conn.ip)
+      if (d.state === 'connected') {
+        setIp(conn.ip)
+        // Seeing through the robot is the point of opening the console, so the
+        // camera comes up with the link rather than waiting to be asked. Audio
+        // stays off: it is a live microphone in someone's room.
+        conn.setVideo(true)
+        setVideoOnState(true)
+      }
       if (d.state === 'closed' || d.state === 'error') {
         setVideoOnState(false)
         setAudioOnState(false)
-        setArmed(false)
+        setPosing(false)
       }
     }
     const onTraffic = (e: Event) => {
@@ -263,6 +274,13 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     [conn, motionMode],
   )
 
+  const setEuler = useCallback(
+    (roll: number, pitch: number, yaw: number) => {
+      conn.sendNoReply(TOPICS.SPORT_MOD, SPORT_CMD.Euler, { x: roll, y: pitch, z: yaw }, true)
+    },
+    [conn],
+  )
+
   const stopMove = useCallback(() => {
     conn.sendNoReply(TOPICS.SPORT_MOD, SPORT_CMD.StopMove, undefined, true)
   }, [conn])
@@ -274,7 +292,6 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     // an in-flight gait; StopMove halts locomotion first.
     conn.sendNoReply(TOPICS.SPORT_MOD, SPORT_CMD.StopMove)
     conn.sendPriority(TOPICS.SPORT_MOD, SPORT_CMD.Damp)
-    setArmed(false)
     log('EMERGENCY STOP - sent StopMove + priority Damp')
   }, [conn, log])
 
@@ -315,11 +332,11 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       stream,
       videoOn,
       audioOn,
-      armed,
+      posing,
       motionMode,
       reportedMode,
       linkStats,
-      setArmed,
+      setPosing,
       setMotionMode,
       connect,
       retry: canRetry ? retry : null,
@@ -330,6 +347,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       sport,
       runAction,
       move,
+      setEuler,
       stopMove,
       emergencyStop,
       refreshMotionMode,
@@ -338,7 +356,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       clearErrors,
       log,
     }),
-    [conn, connState, connError, ip, lowState, sportState, traffic, robotErrors, stream, videoOn, audioOn, armed, motionMode, reportedMode, linkStats, connect, canRetry, retry, disconnect, setVideo, setAudio, apiIdFor, sport, runAction, move, stopMove, emergencyStop, refreshMotionMode, switchMotionMode, clearTraffic, clearErrors, log],
+    [conn, connState, connError, ip, lowState, sportState, traffic, robotErrors, stream, videoOn, audioOn, posing, motionMode, reportedMode, linkStats, connect, canRetry, retry, disconnect, setVideo, setAudio, apiIdFor, sport, runAction, move, setEuler, stopMove, emergencyStop, refreshMotionMode, switchMotionMode, clearTraffic, clearErrors, log],
   )
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>

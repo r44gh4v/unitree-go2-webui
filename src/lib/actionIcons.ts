@@ -23,12 +23,14 @@ const ACTION_ICON: Record<string, string> = {
   StandDown: 'lieDown',
   RecoveryStand: 'mode_stand',
   Sit: 'sitDown',
+  RiseSit: 'mode_stand',
   Damp: 'mode_damping',
   StopMove: 'mode_locking',
   Pose: 'mode_pose',
   // gestures
   Hello: 'shakeHands',
   Stretch: 'stretch',
+  Scrape: 'mode_sideStep',
   FingerHeart: 'showHeart',
   Dance1: 'dance1',
   Dance2: 'dance2',
@@ -56,8 +58,10 @@ const ACTION_ICON: Record<string, string> = {
   LeftFlip: 'turnOver',
   RightFlip: 'turnOver',
   Handstand: 'hand_stand',
-  StandOut: 'hand_stand',
   FreeAvoid: 'mode_ai_avoid',
+  // Not hand_stand: this is the opposite move, and sharing the inverted symbol
+  // with Handstand is what made the two look like duplicates in the first place.
+  BackStand: 'mode_climbing',
 }
 
 /** Raw SVG markup for an action, or null when there is no matching symbol. */

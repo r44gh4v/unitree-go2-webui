@@ -3,7 +3,7 @@ import AuthGate from './components/AuthGate'
 import { RobotProvider, useRobot } from './state/RobotContext'
 import Split from './components/Split'
 import CameraPanel from './components/CameraPanel'
-import { MoonIcon, StopIcon, SunIcon } from './components/Icons'
+import { StopIcon } from './components/Icons'
 import ConnectPanel from './panels/ConnectPanel'
 import DrivePanel from './panels/DrivePanel'
 import StatusPanel from './panels/StatusPanel'
@@ -29,7 +29,7 @@ const TABS = [
 
 /** Sits above the drive controls so the stop is always one click away. */
 function StopBar() {
-  const { emergencyStop, connState, armed } = useRobot()
+  const { emergencyStop, connState } = useRobot()
   const connected = connState === 'connected'
 
   // Escape is the panic key and works even while typing.
@@ -50,46 +50,7 @@ function StopBar() {
         <StopIcon size={15} />
         STOP
       </button>
-      {armed && (
-        <span className="chip warn" title="Flips and jumps are unlocked">
-          <span className="dot" /> armed
-        </span>
-      )}
     </div>
-  )
-}
-
-/**
- * Light/dark switch. Until it is touched the interface follows the OS; a click
- * pins the choice (persisted), and the pre-paint script in index.html applies
- * it on the next load before anything renders.
- */
-function ThemeToggle() {
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const pinned = document.documentElement.dataset.theme
-    if (pinned === 'dark' || pinned === 'light') return pinned
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-  })
-
-  const flip = () => {
-    const next = theme === 'dark' ? 'light' : 'dark'
-    document.documentElement.dataset.theme = next
-    try {
-      localStorage.setItem('go2.theme', next)
-    } catch {
-      /* private windows may refuse; the choice just won't persist */
-    }
-    setTheme(next)
-  }
-
-  return (
-    <button
-      className="btn sm ghost theme-toggle"
-      title={theme === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme'}
-      onClick={flip}
-    >
-      {theme === 'dark' ? <SunIcon size={14} /> : <MoonIcon size={14} />}
-    </button>
   )
 }
 
@@ -117,8 +78,6 @@ function Footer() {
           <b>{linkStats.rate}</b> msg/s
         </span>
       )}
-
-      <ThemeToggle />
     </footer>
   )
 }

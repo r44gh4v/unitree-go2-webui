@@ -3,8 +3,22 @@ import { useRobot } from '../state/RobotContext'
 
 const SEND_HZ = 20
 const SEND_MS = 1000 / SEND_HZ
-/** Keep sending zeros briefly after release so the robot reliably stops. */
+/** Keep sending zeros briefly after release so the robot reliably settles. */
 const TRAILING_ZEROS = 4
+
+/**
+ * Per-tick slew limits, as a fraction of full stick. A key goes from nothing to
+ * fully pressed instantly, which asks the gait controller for a step change in
+ * velocity that no physical stick could ever produce - the robot lurches
+ * catching up. Ramping the demand is what makes keyboard driving feel like the
+ * handheld remote. Release is quicker than push so letting go still stops
+ * promptly.
+ */
+const RAMP_UP = 0.15
+const RAMP_DOWN = 0.35
+
+/** Below this a command is treated as rest. */
+const EPSILON = 0.004
 
 export interface DriveVector {
   x: number
@@ -24,7 +38,24 @@ const ZERO: DriveVector = { x: 0, y: 0, z: 0 }
 /** The robot refuses sideways commands beyond this, whatever the slider says. */
 const MAX_LATERAL = 1.0
 
+/**
+ * Full-stick body attitude in pose mode, in radians. Sign convention follows
+ * the body frame the robot's own imu rpy uses (x forward, y left, z up):
+ * positive roll dips the right side, positive pitch drops the nose, positive
+ * yaw looks left. Taken from the frame definition rather than measured - if the
+ * robot leans the wrong way on the bench, flip the signs here and nowhere else.
+ */
+const EULER_LIMITS = { roll: 0.75, pitch: 0.75, yaw: 0.6 }
+
 const clamp = (v: number, limit: number) => Math.max(-limit, Math.min(limit, v))
+
+/** Step one axis toward its demand, no faster than the ramp allows. */
+function approach(current: number, target: number): number {
+  const rate = Math.abs(target) > Math.abs(current) ? RAMP_UP : RAMP_DOWN
+  const delta = target - current
+  if (Math.abs(delta) <= rate) return target
+  return current + Math.sign(delta) * rate
+}
 
 /**
  * Collects drive input from the sticks, the keyboard, and a gamepad, then sends
@@ -32,11 +63,13 @@ const clamp = (v: number, limit: number) => Math.max(-limit, Math.min(limit, v))
  * while moving - a single Move command only produces a short step.
  */
 export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
-  const { move, stopMove, connState } = useRobot()
+  const { move, setEuler, posing, connState } = useRobot()
   const stick = useRef<DriveVector>(ZERO)
   const keys = useRef(new Set<string>())
   const gamepadIndex = useRef<number | null>(null)
   const trailing = useRef(0)
+  /** The ramped command actually on the wire, as opposed to the raw demand. */
+  const sent = useRef<DriveVector>(ZERO)
   const [active, setActive] = useState<DriveVector>(ZERO)
   const [gamepadName, setGamepadName] = useState<string | null>(null)
 
@@ -44,6 +77,10 @@ export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
   // restarting mid-stride would send a stop and interrupt the drive.
   const limitsRef = useRef(limits)
   limitsRef.current = limits
+  // Read through a ref too: restarting the effect on entering pose would run
+  // its cleanup, and leaving the loop mid-pose must not disturb the robot.
+  const posingRef = useRef(posing)
+  posingRef.current = posing
 
   const setStick = useCallback((v: DriveVector) => {
     stick.current = v
@@ -97,13 +134,17 @@ export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
 
   useEffect(() => {
     if (!enabled || connState !== 'connected') {
+      sent.current = ZERO
       setActive(ZERO)
       return
     }
 
     // Tracks whether the last command sent was a movement, so the cleanup below
-    // can stop the robot if the loop is torn down mid-stride.
+    // can settle the robot if the loop is torn down mid-stride.
     let inMotion = false
+    // The displayed vector is quantised so a 20Hz loop does not re-render the
+    // whole drive column 20 times a second and starve its own timer.
+    let shown = ''
 
     const tick = () => {
       let { x, y, z } = stick.current
@@ -133,23 +174,53 @@ export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
         }
       }
 
-      const moving = x !== 0 || y !== 0 || z !== 0
+      // Hold the translation demand inside the unit circle. Pressing W and D
+      // together used to ask for 1.41x the straight-line speed, which is enough
+      // on its own to make a diagonal walk look unsteady.
+      const magnitude = Math.hypot(x, y)
+      if (magnitude > 1) {
+        x /= magnitude
+        y /= magnitude
+      }
+
+      const cur = sent.current
+      const next = { x: approach(cur.x, x), y: approach(cur.y, y), z: approach(cur.z, z) }
+      sent.current = next
+
+      const moving = Math.abs(next.x) > EPSILON || Math.abs(next.y) > EPSILON || Math.abs(next.z) > EPSILON
+      const { linear, angular } = limitsRef.current
+
+      const send = (v: DriveVector) => {
+        if (posingRef.current) {
+          // In pose mode the feet stay planted and the same sticks lean the
+          // body instead. Stick x rolls, y pitches, q/e yaw.
+          setEuler(v.x * EULER_LIMITS.roll, v.y * EULER_LIMITS.pitch, v.z * EULER_LIMITS.yaw)
+          return
+        }
+        // Stick y is forward, x is right; the robot takes x forward, y left.
+        // Sideways is capped lower than forward because the robot itself is.
+        move(v.y * linear, clamp(-v.x * linear, MAX_LATERAL), v.z * angular)
+      }
+
       if (moving) {
         trailing.current = TRAILING_ZEROS
         inMotion = true
-        const { linear, angular } = limitsRef.current
-        // Stick y is forward, x is right; the robot takes x forward, y left.
-        // Sideways is capped lower than forward because the robot itself is.
-        move(y * linear, clamp(-x * linear, MAX_LATERAL), z * angular)
-        setActive({ x, y, z })
+        send(next)
       } else if (trailing.current > 0) {
         trailing.current--
-        move(0, 0, 0)
-        if (trailing.current === 0) {
-          stopMove()
-          inMotion = false
-        }
-        setActive(ZERO)
+        sent.current = ZERO
+        send(ZERO)
+        if (trailing.current === 0) inMotion = false
+      }
+      // Once the trailing zeros are done the loop simply goes quiet. It must
+      // NOT send StopMove: that is a state-machine transition, not a brake, and
+      // it drops the robot out of a handstand, pose mode, or any special gait -
+      // which is why letting go of a key used to knock it out of the mode.
+
+      const label = next.x.toFixed(2) + ',' + next.y.toFixed(2) + ',' + next.z.toFixed(2)
+      if (label !== shown) {
+        shown = label
+        setActive(moving ? next : ZERO)
       }
     }
 
@@ -157,17 +228,18 @@ export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
     return () => {
       clearInterval(id)
       // Turning the loop off while the robot is walking must not leave a
-      // velocity command as the last thing it heard.
+      // velocity command as the last thing it heard. Zeros only - see above.
       if (inMotion) {
-        move(0, 0, 0)
-        stopMove()
+        if (posingRef.current) setEuler(0, 0, 0)
+        else move(0, 0, 0)
       }
       trailing.current = 0
       keys.current.clear()
       stick.current = ZERO
+      sent.current = ZERO
       setActive(ZERO)
     }
-  }, [enabled, connState, move, stopMove])
+  }, [enabled, connState, move, setEuler])
 
   return { setStick, active, gamepadName }
 }

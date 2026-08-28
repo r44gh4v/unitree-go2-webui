@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRobot } from '../state/RobotContext'
 import { unwrapResponse } from '../lib/go2'
 import { toRobotWav, uploadAudioFile, uploadMegaphone } from '../lib/audioUpload'
@@ -13,18 +13,23 @@ interface AudioTrack {
   CUSTOM_NAME: string
 }
 
+/** Brightness restored when the light is switched back on without a level set. */
+const DEFAULT_BRIGHTNESS = 5
+
 /** Head light, speaker, audio library, megaphone, and announcements. */
 export default function MediaPanel() {
   const { conn, connState, log } = useRobot()
   const connected = connState === 'connected'
 
-  const [brightness, setBrightness] = useState(5)
+  const [brightness, setBrightness] = useState(DEFAULT_BRIGHTNESS)
+  const [lightOn, setLightOn] = useState(true)
   const [volume, setVolume] = useState(5)
   const [color, setColor] = useState<VuiColor>('cyan')
   const [flash, setFlash] = useState(false)
   const [tracks, setTracks] = useState<AudioTrack[] | null>(null)
   const [loadingTracks, setLoadingTracks] = useState(false)
   const [playMode, setPlayMode] = useState<string>('no_cycle')
+  const [playing, setPlaying] = useState<string | null>(null)
   const [megaphone, setMegaphone] = useState(false)
   const [upload, setUpload] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -40,17 +45,37 @@ export default function MediaPanel() {
       return undefined
     })
 
-  // Read the robot's current settings once connected so the sliders start truthful.
+  const loadTracks = useCallback(async () => {
+    setLoadingTracks(true)
+    try {
+      const res = await conn.request(TOPICS.AUDIO_HUB_REQ, AUDIO_API.GET_AUDIO_LIST, JSON.stringify({}))
+      const data = unwrapResponse<{ audio_list?: AudioTrack[] }>(res)
+      setTracks(data?.audio_list ?? [])
+    } catch (e) {
+      log(`Audio list failed: ${(e as Error).message}`)
+      setTracks([])
+    } finally {
+      setLoadingTracks(false)
+    }
+  }, [conn, log])
+
+  // Read the robot's current settings once connected so the sliders start
+  // truthful, and fetch the library rather than making someone press Load first.
   useEffect(() => {
     if (!connected) {
       setTracks(null)
+      setPlaying(null)
+      setMegaphone(false)
       return
     }
     let cancelled = false
     const read = async () => {
       try {
         const b = unwrapResponse<{ brightness: number }>(await conn.request(TOPICS.VUI, VUI_API.GET_BRIGHTNESS))
-        if (!cancelled && typeof b?.brightness === 'number') setBrightness(b.brightness)
+        if (!cancelled && typeof b?.brightness === 'number') {
+          setBrightness(b.brightness || DEFAULT_BRIGHTNESS)
+          setLightOn(b.brightness > 0)
+        }
       } catch {
         /* older firmware may not answer */
       }
@@ -60,26 +85,32 @@ export default function MediaPanel() {
       } catch {
         /* ignore */
       }
+      if (!cancelled) void loadTracks()
     }
     void read()
     return () => {
       cancelled = true
     }
+  }, [connected, conn, loadTracks])
+
+  // There is no request that reads back what is playing - the robot only pushes
+  // this topic when a track starts, stops or advances, so the row stays empty
+  // until it does rather than showing a guess.
+  useEffect(() => {
+    if (!connected) return
+    return conn.subscribe(TOPICS.AUDIO_HUB_PLAY_STATE, (d) => {
+      const s = (typeof d === 'string' ? safeParse(d) : d) as Record<string, unknown> | null
+      if (!s) return
+      const name = s.CUSTOM_NAME ?? s.custom_name ?? s.name ?? s.unique_id ?? s.UNIQUE_ID
+      const status = s.status ?? s.state ?? s.play_state
+      setPlaying(typeof name === 'string' ? `${name}${status ? ` - ${status}` : ''}` : status ? String(status) : null)
+    })
   }, [connected, conn])
 
-  const loadTracks = async () => {
-    setLoadingTracks(true)
-    try {
-      const res = await conn.request(TOPICS.AUDIO_HUB_REQ, AUDIO_API.GET_AUDIO_LIST, JSON.stringify({}))
-      const data = unwrapResponse<{ audio_list?: AudioTrack[] }>(res)
-      setTracks(data?.audio_list ?? [])
-      if (!data?.audio_list?.length) log('The robot reports no stored audio files.')
-    } catch (e) {
-      log(`Audio list failed: ${(e as Error).message}`)
-      setTracks([])
-    } finally {
-      setLoadingTracks(false)
-    }
+  /** Off is brightness zero: this robot has no separate lamp switch. */
+  const toggleLight = (on: boolean) => {
+    setLightOn(on)
+    void vui(VUI_API.SET_BRIGHTNESS, { brightness: on ? brightness || DEFAULT_BRIGHTNESS : 0 }, 'Head light')
   }
 
   const doUpload = async (file: File, asMegaphone: boolean) => {
@@ -88,33 +119,48 @@ export default function MediaPanel() {
       const wav = await toRobotWav(file)
       const name = file.name.replace(/\.[^.]+$/, '')
       const onProgress = ({ sent, total }: { sent: number; total: number }) =>
-        setUpload(`Sending ${sent} of ${total} chunks…`)
+        setUpload(`Sending ${Math.round((sent / Math.max(1, total)) * 100)}% - chunk ${sent} of ${total}`)
       if (asMegaphone) {
         await uploadMegaphone(conn, wav, onProgress)
         setUpload('Sent to the megaphone.')
       } else {
         await uploadAudioFile(conn, name, wav, onProgress)
-        setUpload(`Uploaded "${name}". Reload the list to play it.`)
+        setUpload(`Uploaded "${name}".`)
+        await loadTracks()
       }
     } catch (e) {
       setUpload(`Upload failed: ${(e as Error).message}`)
     }
   }
 
+  const hasTracks = !!tracks?.length
+
   return (
     <div className="section">
       <p className="eyebrow icon-eyebrow"><LightIcon size={14} /> Head light</p>
+
+      <label className={`toggle${lightOn ? ' on' : ''}`} title="Switch the head light off by taking its brightness to zero">
+        <span className="toggle-label">Light on</span>
+        <input
+          type="checkbox"
+          checked={lightOn}
+          disabled={!connected}
+          onChange={(e) => toggleLight(e.target.checked)}
+          style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
+        />
+        <span className="track" />
+      </label>
 
       <div className="slider-row">
         <label htmlFor="bright">Brightness</label>
         <input
           id="bright"
           type="range"
-          min={0}
+          min={1}
           max={10}
           step={1}
           value={brightness}
-          disabled={!connected}
+          disabled={!connected || !lightOn}
           title="Head-light brightness, sent when you let go"
           onChange={(e) => setBrightness(Number(e.target.value))}
           onPointerUp={() => vui(VUI_API.SET_BRIGHTNESS, { brightness }, 'Brightness')}
@@ -125,7 +171,7 @@ export default function MediaPanel() {
 
       {/* A swatch is the action: picking one sends it. The colour stays until
           another is picked or the light is handed back to the robot. */}
-      <p className="note">Pick a colour to send it. It stays on until you change it.</p>
+      <p className="note">Picking a colour sends it.</p>
       <div className="swatches">
         {VUI_COLORS.map((c) => (
           <button
@@ -133,7 +179,7 @@ export default function MediaPanel() {
             className={`swatch${color === c ? ' on' : ''}`}
             aria-label={`Set the light ${c}`}
             title={`Set the light ${c}`}
-            disabled={!connected}
+            disabled={!connected || !lightOn}
             style={{ background: VUI_COLOR_HEX[c] }}
             onClick={() => {
               setColor(c)
@@ -171,7 +217,7 @@ export default function MediaPanel() {
         <label htmlFor="vol">Volume</label>
         <input
           id="vol"
-          title="Speaker volume, sent when you release"
+          title="Speaker volume, sent when you let go"
           type="range"
           min={0}
           max={10}
@@ -185,21 +231,26 @@ export default function MediaPanel() {
         <span className="val">{volume}/10</span>
       </div>
 
+      <div className="divider" />
+      <p className="eyebrow">Stored sounds</p>
+
+      <p className="note">{playing ? `Playing: ${playing}` : 'No playback reported yet.'}</p>
+
       <div className="btn-row" style={{ marginBottom: 8 }}>
-        <button className="btn sm" disabled={!connected || loadingTracks} title="Fetch the list of sounds stored on the robot" onClick={loadTracks}>
+        <button className="btn sm" disabled={!connected || loadingTracks} title="Fetch the list of sounds stored on the robot again" onClick={() => void loadTracks()}>
           <RefreshIcon size={14} />
-          {loadingTracks ? 'Loading…' : 'Load'}
+          {loadingTracks ? 'Loading…' : 'Reload'}
         </button>
-        <button className="btn sm" disabled={!connected} title="Previous track" onClick={() => audio(AUDIO_API.SELECT_PREV_START_PLAY, {}, 'Previous')}>
+        <button className="btn sm" disabled={!connected || !hasTracks} title="Play the previous track" onClick={() => audio(AUDIO_API.SELECT_PREV_START_PLAY, {}, 'Previous')}>
           <SkipBackIcon size={14} />
         </button>
-        <button className="btn sm" disabled={!connected} title="Resume playback" onClick={() => audio(AUDIO_API.UNSUSPEND, {}, 'Resume')}>
+        <button className="btn sm" disabled={!connected || !hasTracks} title="Resume playback" onClick={() => audio(AUDIO_API.UNSUSPEND, {}, 'Resume')}>
           <PlayIcon size={13} />
         </button>
-        <button className="btn sm" disabled={!connected} title="Pause playback" onClick={() => audio(AUDIO_API.PAUSE, {}, 'Pause')}>
+        <button className="btn sm" disabled={!connected || !hasTracks} title="Pause playback" onClick={() => audio(AUDIO_API.PAUSE, {}, 'Pause')}>
           <PauseIcon size={13} />
         </button>
-        <button className="btn sm" disabled={!connected} title="Next track" onClick={() => audio(AUDIO_API.SELECT_NEXT_START_PLAY, {}, 'Next')}>
+        <button className="btn sm" disabled={!connected || !hasTracks} title="Play the next track" onClick={() => audio(AUDIO_API.SELECT_NEXT_START_PLAY, {}, 'Next')}>
           <SkipFwdIcon size={14} />
         </button>
       </div>
@@ -225,14 +276,15 @@ export default function MediaPanel() {
         </select>
       </div>
 
-      {tracks && tracks.length > 0 && (
+      {hasTracks && (
         <div style={{ maxHeight: 200, overflowY: 'auto', marginBottom: 8 }}>
-          {tracks.map((t) => (
+          {tracks!.map((t) => (
             <button
               key={t.UNIQUE_ID}
               className="btn sm block"
               style={{ justifyContent: 'flex-start', marginBottom: 4 }}
               disabled={!connected}
+              title={`Play ${t.CUSTOM_NAME}`}
               onClick={() => audio(AUDIO_API.SELECT_START_PLAY, { unique_id: t.UNIQUE_ID }, 'Play')}
             >
               {t.CUSTOM_NAME}
@@ -240,13 +292,12 @@ export default function MediaPanel() {
           ))}
         </div>
       )}
-      {tracks && tracks.length === 0 && <p className="note">No audio files stored on the robot.</p>}
+      {tracks && !hasTracks && <p className="note">No sounds stored on the robot.</p>}
 
       <div className="divider" />
       <p className="eyebrow">Add a sound</p>
       <p className="note">
-        Pick any audio file. It is converted to the 44.1 kHz mono WAV the robot expects and sent over the data
-        channel, so a long track takes a while.
+        Converted to 44.1 kHz mono WAV and sent over the data channel.
       </p>
       <input
         ref={fileRef}
@@ -259,7 +310,7 @@ export default function MediaPanel() {
           e.target.value = ''
         }}
       />
-      <button className="btn block" disabled={!connected} title="Convert a file to the robot format and upload it to its library" onClick={() => fileRef.current?.click()}>
+      <button className="btn block" disabled={!connected} title="Convert a file and add it to the robot's library" onClick={() => fileRef.current?.click()}>
         <UploadIcon size={15} />
         Choose an audio file
       </button>
@@ -269,14 +320,14 @@ export default function MediaPanel() {
           <button
             className="btn sm block"
             disabled={!connected || !!mic.clip}
-            title="Record a clip from your microphone to send to the robot"
+            title="Record a clip from your microphone"
             onClick={() => void mic.start()}
           >
             <MicIcon size={14} />
             Record from mic
           </button>
         ) : (
-          <button className="btn sm block primary" title="Stop recording" onClick={mic.stop}>
+          <button className="btn sm block primary" title="Finish the recording" onClick={mic.stop}>
             <MicIcon size={14} />
             Stop · {mic.seconds.toFixed(1)}s
           </button>
@@ -287,24 +338,13 @@ export default function MediaPanel() {
           <button
             className="btn sm"
             disabled={!connected}
-            title="Add the recording to the robot's audio library"
+            title="Add the recording to the robot's library"
             onClick={async () => {
               await doUpload(mic.clip!, false)
               mic.discard()
             }}
           >
             Add to library
-          </button>
-          <button
-            className="btn sm"
-            disabled={!connected || !megaphone}
-            title={megaphone ? 'Play the recording through the megaphone' : 'Enter megaphone mode first (below)'}
-            onClick={async () => {
-              await doUpload(mic.clip!, true)
-              mic.discard()
-            }}
-          >
-            To megaphone
           </button>
           <button className="btn sm ghost" title="Throw the recording away" onClick={mic.discard}>
             Discard
@@ -317,13 +357,13 @@ export default function MediaPanel() {
       <div className="divider" />
       <p className="eyebrow">Megaphone</p>
       <p className="note">
-        Megaphone mode plays audio straight out of the speaker without storing it. Enter the mode, then send a clip.
+        Straight out of the speaker, not stored. Enter the mode first.
       </p>
       <div className="btn-row">
         <button
-          className={`btn sm${megaphone ? ' primary' : ''}`}
+          className={`btn sm${megaphone ? ' on' : ''}`}
           disabled={!connected}
-          title="Route live audio straight to the speaker without storing it"
+          title={megaphone ? 'Leave megaphone mode' : 'Route audio straight to the speaker without storing it'}
           onClick={async () => {
             // audio() resolves undefined on failure - only flip the mode when
             // the robot actually acknowledged the request.
@@ -332,7 +372,7 @@ export default function MediaPanel() {
           }}
         >
           <MegaphoneIcon size={14} />
-          {megaphone ? 'Exit megaphone' : 'Enter megaphone'}
+          {megaphone ? 'Leave megaphone' : 'Enter megaphone'}
         </button>
         <input
           ref={megaphoneFileRef}
@@ -345,28 +385,49 @@ export default function MediaPanel() {
             e.target.value = ''
           }}
         />
-        <button className="btn sm" disabled={!connected || !megaphone} title="Play a clip through the megaphone" onClick={() => megaphoneFileRef.current?.click()}>
+        <button className="btn sm" disabled={!connected || !megaphone} title="Play an audio file through the megaphone" onClick={() => megaphoneFileRef.current?.click()}>
           Send a clip
         </button>
+        {mic.clip && (
+          <button
+            className="btn sm"
+            disabled={!connected || !megaphone}
+            title="Play the recording through the megaphone"
+            onClick={async () => {
+              await doUpload(mic.clip!, true)
+              mic.discard()
+            }}
+          >
+            Send the recording
+          </button>
+        )}
       </div>
 
       <div className="divider" />
       <p className="eyebrow">Built-in announcements</p>
+      <p className="note">Sound only - these do not switch the modes.</p>
       <div className="btn-grid">
-        <button className="btn" disabled={!connected} title="Play the built-in 'avoidance on' announcement" onClick={() => audio(AUDIO_API.PLAY_START_OBSTACLE_AVOIDANCE, {}, 'Announcement')}>
+        <button className="btn" disabled={!connected} title="Play the 'avoidance on' clip" onClick={() => audio(AUDIO_API.PLAY_START_OBSTACLE_AVOIDANCE, {}, 'Announcement')}>
           Avoidance on
         </button>
-        <button className="btn" disabled={!connected} title="Play the built-in 'avoidance off' announcement" onClick={() => audio(AUDIO_API.PLAY_EXIT_OBSTACLE_AVOIDANCE, {}, 'Announcement')}>
+        <button className="btn" disabled={!connected} title="Play the 'avoidance off' clip" onClick={() => audio(AUDIO_API.PLAY_EXIT_OBSTACLE_AVOIDANCE, {}, 'Announcement')}>
           Avoidance off
         </button>
-        <button className="btn" disabled={!connected} title="Play the built-in 'follow on' announcement" onClick={() => audio(AUDIO_API.PLAY_START_COMPANION_MODE, {}, 'Announcement')}>
+        <button className="btn" disabled={!connected} title="Play the 'follow on' clip" onClick={() => audio(AUDIO_API.PLAY_START_COMPANION_MODE, {}, 'Announcement')}>
           Follow on
         </button>
-        <button className="btn" disabled={!connected} title="Play the built-in 'follow off' announcement" onClick={() => audio(AUDIO_API.PLAY_EXIT_COMPANION_MODE, {}, 'Announcement')}>
+        <button className="btn" disabled={!connected} title="Play the 'follow off' clip" onClick={() => audio(AUDIO_API.PLAY_EXIT_COMPANION_MODE, {}, 'Announcement')}>
           Follow off
         </button>
       </div>
-
     </div>
   )
+}
+
+function safeParse(s: string): Record<string, unknown> | null {
+  try {
+    return JSON.parse(s) as Record<string, unknown>
+  } catch {
+    return null
+  }
 }

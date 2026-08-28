@@ -1,102 +1,149 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRobot } from '../state/RobotContext'
-import { ACTIONS, ACTION_GROUPS, SPORT_QUERIES, type ActionSpec } from '../lib/actions'
+import { ACTIONS, ACTION_GROUPS, type ActionSpec } from '../lib/actions'
 import { actionIconSvg } from '../lib/actionIcons'
-import { unwrapResponse } from '../lib/go2'
-import { AlertIcon } from '../components/Icons'
+import { SPORT_CMD, SPORT_CMD_MCF } from '../lib/constants'
+
+/** How long a refusal stays on the tile before it goes quiet again. */
+const FAIL_MS = 5000
+
+type Phase = 'idle' | 'pending' | 'on' | 'failed'
 
 /**
  * Tooltip text: what the action does, then whatever the operator needs to know
  * before pressing it, and the api id last for anyone reading the protocol.
  */
-function describe(a: ActionSpec, apiId: number | null, blocked: boolean, on: boolean): string {
+function describe(a: ActionSpec, apiId: number | null, mode: string, phase: Phase, reason?: string): string {
   const parts = [a.note ?? a.label]
-  if (blocked) parts.push('Turn on dynamic moves to use this.')
-  else if (a.toggle) parts.push(on ? 'Press again to stop.' : 'Stays on until pressed again.')
+  if (apiId === null) parts.push(`Not available while the robot runs the ${mode} motion service.`)
+  else if (phase === 'failed' && reason) parts.push(reason)
+  else if (a.toggle) parts.push(phase === 'on' ? 'Press again to stop.' : 'Stays on until pressed again.')
   if (apiId !== null) parts.push(`api ${apiId}`)
   return parts.join(' · ')
 }
 
 export default function ActionsPanel() {
-  const { connState, motionMode, armed, setArmed, runAction, sport, apiIdFor, log } = useRobot()
+  const { connState, motionMode, runAction, sport, apiIdFor, posing, setPosing, log } = useRobot()
   const connected = connState === 'connected'
-  const [toggles, setToggles] = useState<Record<string, boolean>>({})
-  const [pending, setPending] = useState<Record<string, boolean>>({})
-  const [queryResult, setQueryResult] = useState<string | null>(null)
+  const [phase, setPhase] = useState<Record<string, Phase>>({})
+  const [reason, setReason] = useState<Record<string, string>>({})
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
-  const fire = (name: string) => {
-    const action = ACTIONS.find((a) => a.name === name)!
-    const next = action.toggle ? !toggles[name] : true
-    setPending((p) => ({ ...p, [name]: true }))
-    runAction(action, next)
+  // A dropped link, or a different motion service, invalidates everything this
+  // panel believes about the robot. Start again rather than showing a stale on.
+  useEffect(() => {
+    setPhase({})
+    setReason({})
+  }, [connected, motionMode])
+
+  useEffect(() => {
+    const t = timers.current
+    return () => Object.values(t).forEach(clearTimeout)
+  }, [])
+
+  const settle = useCallback((name: string, next: Phase, why?: string) => {
+    setPhase((p) => ({ ...p, [name]: next }))
+    if (why) setReason((r) => ({ ...r, [name]: why }))
+    clearTimeout(timers.current[name])
+    if (next === 'failed') {
+      timers.current[name] = setTimeout(() => setPhase((p) => ({ ...p, [name]: 'idle' })), FAIL_MS)
+    }
+  }, [])
+
+  const fire = (a: ActionSpec) => {
+    // Pose is a tile like any other; it just needs its own send sequence.
+    if (a.name === 'Pose') {
+      void togglePose()
+      return
+    }
+    const wasOn = phase[a.name] === 'on'
+    const next = a.toggle ? !wasOn : true
+    setPhase((p) => ({ ...p, [a.name]: 'pending' }))
+    runAction(a, next)
       .then(() => {
-        if (action.toggle) setToggles((t) => ({ ...t, [name]: next }))
-        log(`${action.label}${action.toggle ? (next ? ' on' : ' off') : ''} - the robot accepted it`)
+        if (!a.toggle) {
+          // A one-shot has no lasting state to show; it just goes quiet again.
+          settle(a.name, 'idle')
+        } else if (a.exclusive && next) {
+          // The robot only walks one way at a time, so turning a gait on has to
+          // visibly release every other gait rather than leaving two lit.
+          setPhase((p) => {
+            const out = { ...p }
+            for (const other of ACTIONS) {
+              if (other.exclusive && other.name !== a.name) out[other.name] = 'idle'
+            }
+            out[a.name] = 'on'
+            return out
+          })
+        } else {
+          settle(a.name, next ? 'on' : 'idle')
+        }
+        log(`${a.label}${a.toggle ? (next ? ' on' : ' off') : ''} - the robot accepted it`)
       })
-      .catch((e) => log(`${action.label} failed: ${(e as Error).message}`))
-      .finally(() => setPending((p) => ({ ...p, [name]: false })))
+      .catch((e) => {
+        const message = (e as Error).message
+        // 4206 is the robot saying the posture is wrong for this move, which is
+        // almost always cured by standing up first - say so rather than echoing.
+        const hint = message.includes('4206') ? `${message} Try Ready stance first.` : message
+        settle(a.name, 'failed', hint)
+        log(`${a.label} failed: ${message}`)
+      })
   }
 
-  const runQuery = (label: string, apiId: number, parameter?: unknown) => {
-    sport(apiId, parameter)
-      .then((res) => {
-        const value = unwrapResponse(res)
-        setQueryResult(`${label}: ${typeof value === 'string' ? value : JSON.stringify(value, null, 1)}`)
-      })
-      .catch((e) => setQueryResult(`${label} failed: ${(e as Error).message}`))
+  const togglePose = async () => {
+    const ids = motionMode === 'mcf' ? SPORT_CMD_MCF : SPORT_CMD
+    try {
+      if (!posing) {
+        await sport(ids.Pose, { data: true })
+        setPosing(true)
+        log('Pose mode on - the walk and turn sticks now lean the body')
+      } else {
+        // Leaving pose first stops the loop sending attitude frames, so the
+        // StopMove that actually exits the mode is the last thing on the wire.
+        setPosing(false)
+        await sport(SPORT_CMD.StopMove)
+        log('Pose mode off')
+      }
+    } catch (e) {
+      setPosing(false)
+      log(`Pose mode: ${(e as Error).message}`)
+    }
   }
 
   return (
     <div className="section">
-      <div
-        
-        style={{
-          border: `1px solid ${armed ? 'var(--warn)' : 'var(--line)'}`,
-          borderRadius: 'var(--radius)',
-          padding: 10,
-          marginBottom: 14,
-        }}
-      >
-        <label className={`toggle${armed ? ' on' : ''}`} title="Unlock flips, jumps, and handstands; keep off unless there is clear space">
-          <span className="toggle-label">
-            <AlertIcon size={15} />
-            Allow dynamic moves
-          </span>
-          <input
-            type="checkbox"
-            checked={armed}
-            disabled={!connected}
-            onChange={(e) => setArmed(e.target.checked)}
-            style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
-          />
-          <span className="track" />
-        </label>
-        <p className="note" style={{ marginBottom: 0 }}>
-          Flips, jumps, and handstands can damage the robot or injure someone nearby. Give it two metres of clear
-          space on a soft, level floor before turning this on.
-        </p>
-      </div>
-
       {ACTION_GROUPS.map((group) => {
-        const items = ACTIONS.filter((a) => a.group === group.key && a.ids[motionMode] !== undefined)
+        const items = ACTIONS.filter((a) => a.group === group.key)
         if (!items.length) return null
         return (
-          <div key={group.key} style={{ marginBottom: 16 }}>
+          <div key={group.key} style={{ marginBottom: 12 }}>
             <p className="eyebrow">{group.label}</p>
+            <p className="note">{group.note}</p>
             <div className="btn-grid">
               {items.map((a) => {
-                const blocked = !!a.risky && !armed
-                const on = a.toggle && toggles[a.name]
+                const apiId = apiIdFor(a)
+                const unavailable = connected && apiId === null
+                // Pose mode is shared state - the drive loop reads it too - so
+                // it comes from the context rather than this panel's own map.
+                const p: Phase = a.name === 'Pose' ? (posing ? 'on' : 'idle') : (phase[a.name] ?? 'idle')
                 const icon = actionIconSvg(a.name)
                 return (
                   <button
                     key={a.name}
-                    className={`btn action${on ? ' primary' : ''}${pending[a.name] ? ' running' : ''}`}
-                    disabled={!connected || blocked || !!pending[a.name]}
-                    title={describe(a, apiIdFor(a), blocked, !!on)}
-                    onClick={() => fire(a.name)}
+                    className={[
+                      'btn action',
+                      p === 'on' ? 'on' : '',
+                      p === 'pending' ? 'running' : '',
+                      p === 'failed' ? 'failed' : '',
+                      unavailable ? 'unavailable' : '',
+                    ].filter(Boolean).join(' ')}
+                    aria-pressed={a.toggle ? p === 'on' : undefined}
+                    aria-busy={p === 'pending' || undefined}
+                    disabled={!connected || unavailable || p === 'pending'}
+                    title={describe(a, apiId, motionMode, p, reason[a.name])}
+                    onClick={() => fire(a)}
                   >
-                    {pending[a.name] && <span className="action-busy" />}
+                    {p === 'pending' && <span className="action-busy" />}
                     {icon && <span className="action-icon" dangerouslySetInnerHTML={{ __html: icon }} />}
                     <span className="action-label">{a.label}</span>
                     {a.risky && <span className="badge">!</span>}
@@ -108,26 +155,9 @@ export default function ActionsPanel() {
         )
       })}
 
-      {ACTIONS.every((a) => a.ids[motionMode] === undefined) && (
-        <p className="note warn">This robot's motion service has none of these actions.</p>
-      )}
-
-      <div style={{ marginBottom: 16 }}>
-        <p className="eyebrow">Ask the robot</p>
-        <p className="note">Reads a value back and prints it in the log.</p>
-        <div className="btn-grid">
-          {SPORT_QUERIES.map((q) => (
-            <button key={q.label} className="btn" disabled={!connected} title={`Read the robot's current ${q.label.toLowerCase()}`} onClick={() => runQuery(q.label, q.apiId, q.parameter)}>
-              {q.label}
-            </button>
-          ))}
-        </div>
-        {queryResult && (
-          <pre className="log" style={{ marginTop: 8, maxHeight: 160 }}>
-            {queryResult}
-          </pre>
-        )}
-      </div>
+      <p className="note" style={{ marginTop: 10 }}>
+        <span className="badge">!</span> needs clear, soft floor. Hatched means missing from the {motionMode} service.
+      </p>
     </div>
   )
 }

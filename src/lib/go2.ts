@@ -59,6 +59,8 @@ export function unwrapResponse<T = unknown>(res: ApiResponse): T {
 
 const HEARTBEAT_MS = 2000
 const REQUEST_TIMEOUT_MS = 8000
+/** How long the robot gets to open the data channel and pass validation. */
+const HANDSHAKE_TIMEOUT_MS = 15000
 
 function hexToBase64(hex: string): string {
   const bytes = new Uint8Array(hex.length / 2)
@@ -177,6 +179,8 @@ export class Go2Connection extends EventTarget {
   lastValidationKey = ''
 
   private hbTimer: ReturnType<typeof setInterval> | null = null
+  /** Fails the attempt if the robot never finishes the handshake. */
+  private connectTimer: ReturnType<typeof setTimeout> | null = null
   private pending = new Map<number, Pending>()
   private subs = new Map<string, Set<(data: unknown, message: ApiResponse) => void>>()
   private live = new Set<string>()
@@ -354,6 +358,27 @@ export class Go2Connection extends EventTarget {
     if (answer.ip) this.ip = answer.ip
     await pc.setRemoteDescription(new RTCSessionDescription(answer))
     this.traffic('sys', `SDP answer applied (${method}${this.ip ? ` · ${this.ip}` : ''})`)
+
+    // Signalling succeeding only means the robot took the offer. If the data
+    // channel never opens or validation never comes back, nothing else here
+    // would ever fire and the panel would sit on "Connecting" forever.
+    this.clearConnectTimer()
+    this.connectTimer = setTimeout(() => {
+      if (this.generation !== gen) return
+      if (this.state === 'connected') return
+      const why =
+        this.state === 'validating'
+          ? 'The robot accepted the link but never finished the handshake. On firmware 1.1.15 and newer this usually means the device key is missing or wrong.'
+          : 'The robot answered but the data channel never opened. It may already have another client connected.'
+      this.traffic('sys', `handshake timed out after ${HANDSHAKE_TIMEOUT_MS}ms`)
+      this.setState('error', why)
+      pc.close()
+    }, HANDSHAKE_TIMEOUT_MS)
+  }
+
+  private clearConnectTimer() {
+    if (this.connectTimer) clearTimeout(this.connectTimer)
+    this.connectTimer = null
   }
 
   private waitIceGathering(pc: RTCPeerConnection, timeoutMs: number): Promise<void> {
@@ -375,6 +400,7 @@ export class Go2Connection extends EventTarget {
   disconnect() {
     // Invalidate any connect still in flight so it cannot revive this session.
     this.generation++
+    this.clearConnectTimer()
     if (this.hbTimer) clearInterval(this.hbTimer)
     this.hbTimer = null
     this.pending.forEach((p) => {
@@ -595,6 +621,7 @@ export class Go2Connection extends EventTarget {
     const data = msg.data as unknown as string
     if (data === 'Validation Ok.') {
       this.traffic('sys', 'validation accepted - link established')
+      this.clearConnectTimer()
       this.setState('connected')
       this.startHeartbeat()
       this.emit('validated')

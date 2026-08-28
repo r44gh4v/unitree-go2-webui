@@ -338,7 +338,7 @@ export default function MappingPanel() {
         <button className="btn sm ghost" title="Empty the mapping log" onClick={() => setServerLog([])} disabled={!serverLog.length}>
           Clear
         </button>
-        <button className="btn sm ghost" title="Replies appear here and in the Console tab's message log" onClick={() => log('Mapping commands are logged in the Console tab too.')}>
+        <button className="btn sm ghost" title="Replies also go to the Console log" onClick={() => log('Mapping commands are logged in the Console tab too.')}>
           Where are replies?
         </button>
       </div>

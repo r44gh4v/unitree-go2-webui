@@ -81,8 +81,13 @@ export interface DiscoveredRobot {
   name?: string
 }
 
-/** How the browser reaches the robot. */
-export type ConnectMethod = 'ip' | 'serial' | 'ap' | 'cloud'
+/**
+ * How the browser reaches the robot, as the operator picks it. 'lan' is the
+ * no-typing case - robot and this machine on the same router, found by a scan -
+ * and it resolves to a plain address before the connection is opened, so the
+ * wire only ever sees the four transports in ConnectOptions.
+ */
+export type ConnectMethod = 'ip' | 'serial' | 'ap' | 'lan' | 'cloud'
 
 export interface CloudRobot {
   sn: string

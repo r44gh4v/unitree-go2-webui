@@ -94,7 +94,7 @@ export default function ConsolePanel() {
   return (
     <div className="section">
       <p className="eyebrow">Command catalogue</p>
-      <p className="note">Every documented command. Picking one fills in the form below.</p>
+      <p className="note">Picking one fills the form below.</p>
       <input
         className="input"
         title="Search every documented command; click a result to fill the form"
@@ -130,7 +130,7 @@ export default function ConsolePanel() {
 
       <div className="divider" />
       <p className="eyebrow">Send a request</p>
-      <p className="note">Any topic and API id from the protocol, sent as-is.</p>
+      <p className="note">Sent as-is.</p>
 
       <div className="field">
         <label htmlFor="topic">Topic</label>
@@ -176,14 +176,14 @@ export default function ConsolePanel() {
 
       <div className="divider" />
       <p className="eyebrow">Watch topics</p>
-      <p className="note">Subscribing streams live values from the robot. High-rate topics are noted.</p>
+      <p className="note">Streams live values. High-rate topics are noted.</p>
 
       {SUBSCRIBABLE_TOPICS.map((t) => {
         const on = watching.includes(t.topic)
         return (
           <div key={t.topic} style={{ marginBottom: 6 }}>
             <button
-              className={`btn sm block${on ? ' primary' : ''}`}
+              className={`btn sm block${on ? ' on' : ''}`}
               style={{ justifyContent: 'space-between' }}
               disabled={!connected}
               title={on ? `Stop watching ${t.topic}` : `${t.note} (${t.topic})`}
@@ -213,7 +213,7 @@ export default function ConsolePanel() {
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
-        <button className={`btn sm${follow ? ' primary' : ''}`} title="Keep the log scrolled to the newest message" onClick={() => setFollow((f) => !f)}>
+        <button className={`btn sm${follow ? ' on' : ''}`} title="Keep the log scrolled to the newest message" onClick={() => setFollow((f) => !f)}>
           Follow
         </button>
         <button className="btn sm ghost" title="Empty the message log" onClick={clearTraffic}>

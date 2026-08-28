@@ -1,6 +1,11 @@
+import { useRef, useState } from 'react'
 import { useRobot } from '../state/RobotContext'
-import { FOOT_NAMES, GAITS, MOTOR_NAMES } from '../lib/constants'
+import { FOOT_NAMES, GAITS, MOTOR_NAMES, SPORT_QUERIES } from '../lib/constants'
+import { unwrapResponse } from '../lib/go2'
 import { MODE_NAMES } from '../lib/types'
+
+/** Faults beyond this stay in the list but out of the layout; the rest is a count. */
+const FAULTS_SHOWN = 8
 
 function num(v: unknown, digits = 2): string {
   return typeof v === 'number' && Number.isFinite(v) ? v.toFixed(digits) : '-'
@@ -28,7 +33,19 @@ function Stat({ label, value, unit, meter }: { label: string; value: string; uni
  * then the detail tables for when something looks wrong.
  */
 export default function StatusPanel() {
-  const { lowState, sportState, robotErrors, clearErrors, connState } = useRobot()
+  const { lowState, sportState, robotErrors, clearErrors, connState, sport } = useRobot()
+  const faultsRef = useRef<HTMLDivElement>(null)
+  const [queryResult, setQueryResult] = useState<string | null>(null)
+
+  const runQuery = (label: string, apiId: number, parameter?: unknown) => {
+    setQueryResult(`${label}…`)
+    sport(apiId, parameter)
+      .then((res) => {
+        const value = unwrapResponse(res)
+        setQueryResult(`${label}: ${typeof value === 'string' ? value : JSON.stringify(value, null, 1)}`)
+      })
+      .catch((e) => setQueryResult(`${label} failed: ${(e as Error).message}`))
+  }
 
   if (connState !== 'connected') {
     return (
@@ -70,24 +87,21 @@ export default function StatusPanel() {
             meter={hottest ? { pct: hottest, tone: hottest > 80 ? 'bad' : hottest > 65 ? 'warn' : undefined } : undefined}
           />
         </div>
-      </div>
 
-      {active.length > 0 && (
-        <div className="section">
-          <p className="eyebrow">Active faults</p>
-          {active.slice(0, 6).map((e, i) => (
-            <div key={i} style={{ marginBottom: 6 }}>
-              <div style={{ fontSize: 13, color: 'var(--text-strong)', fontWeight: 600 }}>{e.text}</div>
-              <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                {e.source} · {new Date(e.ts).toLocaleTimeString()}
-              </div>
-            </div>
-          ))}
-          <button className="btn sm ghost" title="Clear the fault list" onClick={clearErrors}>
-            Clear list
+        {/* Faults live at the bottom of the panel so a burst cannot shove the
+            numbers off screen, but the operator still has to know one exists
+            while looking at the stats - hence the count here, which jumps. */}
+        {active.length > 0 && (
+          <button
+            className="chip warn fault-jump"
+            title="Go to the fault list"
+            onClick={() => faultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
+          >
+            <span className="dot" />
+            {active.length} active fault{active.length === 1 ? '' : 's'}
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       <details className="section drawer">
         <summary className="eyebrow">Power</summary>
@@ -187,6 +201,51 @@ export default function StatusPanel() {
             </tbody>
           </table>
         </details>
+      )}
+
+      <details className="section drawer">
+        <summary className="eyebrow">Ask the robot</summary>
+        <p className="note">Reads a value back.</p>
+        <div className="btn-row">
+          {SPORT_QUERIES.map((q) => (
+            <button
+              key={q.label}
+              className="btn sm"
+              disabled={connState !== 'connected'}
+              title={`Read the robot's current ${q.label.toLowerCase()}`}
+              onClick={() => runQuery(q.label, q.apiId, q.parameter)}
+            >
+              {q.label}
+            </button>
+          ))}
+        </div>
+        {queryResult && (
+          <pre className="log" style={{ marginTop: 8, maxHeight: 160 }}>
+            {queryResult}
+          </pre>
+        )}
+      </details>
+
+      {active.length > 0 && (
+        <div className="section" ref={faultsRef}>
+          <p className="eyebrow">Active faults</p>
+          <div className="faults">
+            {active.slice(0, FAULTS_SHOWN).map((e, i) => (
+              <div className="fault" key={i}>
+                <div className="fault-text">{e.text}</div>
+                <div className="fault-meta">
+                  {e.source} · {new Date(e.ts).toLocaleTimeString()}
+                </div>
+              </div>
+            ))}
+          </div>
+          {active.length > FAULTS_SHOWN && (
+            <p className="note">{active.length - FAULTS_SHOWN} older not shown.</p>
+          )}
+          <button className="btn sm ghost" title="Clear the fault list" onClick={clearErrors}>
+            Clear list
+          </button>
+        </div>
       )}
     </>
   )

@@ -27,7 +27,7 @@
   --warn: #c07414;
   --danger: #9e122c;
 
-  /* derived, so the dark theme can restate them */
+  /* derived from the palette above; kept named so a future theme can restate them */
   --estop-off: #b97a80;
   --icon-dim: #c9968f;
   --spinner-track: rgba(158, 18, 44, 0.22);
@@ -44,66 +44,6 @@
   --shadow: 0 1px 2px rgba(120, 13, 32, 0.06);
 }
 
-/* Dark theme: the deep-maroon world the camera viewport already lives in,
-   extended to the whole interface. Cream carries the text, salmon takes over
-   crimson's text-and-accent role (crimson is illegible as text on this
-   ground), and crimson keeps every solid fill - STOP, primary buttons, active
-   segments - so the brand reads the same in both themes. Applied when the OS
-   asks for dark and the user has not chosen, or when the footer toggle says so. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #14090d;
-    --surface: #241419;
-    --surface-2: #2e1a21;
-    --sunken: #1b0e12;
-
-    --line: #452630;
-    --line-strong: #5e3441;
-
-    --text: #f4e3d8;
-    --text-strong: #f99d90;
-    --muted: #c9a49a;
-    --faint: #a1837c;
-
-    --accent: #f99d90;
-    --accent-soft: #9e122c;
-
-    --ok: #6cc294;
-    --warn: #e2a45f;
-    --danger: #f99d90;
-
-    --estop-off: #7a3a43;
-    --icon-dim: #7a544e;
-    --spinner-track: rgba(249, 157, 144, 0.25);
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #14090d;
-  --surface: #241419;
-  --surface-2: #2e1a21;
-  --sunken: #1b0e12;
-
-  --line: #452630;
-  --line-strong: #5e3441;
-
-  --text: #f4e3d8;
-  --text-strong: #f99d90;
-  --muted: #c9a49a;
-  --faint: #a1837c;
-
-  --accent: #f99d90;
-  --accent-soft: #9e122c;
-
-  --ok: #6cc294;
-  --warn: #e2a45f;
-  --danger: #f99d90;
-
-  --estop-off: #7a3a43;
-  --icon-dim: #7a544e;
-  --spinner-track: rgba(249, 157, 144, 0.25);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
-}
 
 * { box-sizing: border-box; }
 
@@ -285,7 +225,7 @@ button { font: inherit; color: inherit; }
 
 .column { background: var(--surface); }
 
-.section { border-bottom: 1px solid var(--line); padding: 12px; }
+.section { border-bottom: 1px solid var(--line); padding: 10px 12px; }
 .section:last-child { border-bottom: none; }
 
 /* Section labels are wayfinding, not calls to action: warm brown, so crimson
@@ -297,7 +237,7 @@ button { font: inherit; color: inherit; }
   letter-spacing: var(--track);
   text-transform: uppercase;
   color: var(--muted);
-  margin: 0 0 10px;
+  margin: 0 0 7px;
 }
 .icon-eyebrow { display: flex; align-items: center; gap: 6px; }
 .icon-eyebrow svg { color: var(--accent); }
@@ -453,7 +393,7 @@ textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
   height: 30px;
   color: var(--text-strong);
 }
-.btn.action.primary .action-icon { color: var(--cream); }
+.btn.action.on .action-icon { color: var(--cream); }
 .action-icon svg { width: 100%; height: 100%; display: block; }
 .action-icon, .action-icon svg { pointer-events: none; }
 .action-label { line-height: 1.15; }
@@ -461,7 +401,7 @@ textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
 
 /* Toggled on: filled, plus a marker dot so the state survives a screenshot,
    a colourblind reader, or a glance from across the room. */
-.btn.action.primary::after {
+.btn.action.on::after {
   content: "";
   position: absolute;
   top: 5px;
@@ -493,13 +433,14 @@ textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
-.btn.action.primary .action-busy { border-color: rgba(252, 236, 223, 0.35); border-top-color: var(--cream); }
+.btn.action.on .action-busy { border-color: rgba(252, 236, 223, 0.35); border-top-color: var(--cream); }
 
 /* segmented control */
+/* Five connection methods have to sit in a column that narrows to 240px, so
+   the row wraps rather than truncating "Hotspot" to an ellipsis. */
 .seg {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
   gap: 2px;
   background: var(--sunken);
   border-radius: 8px;
@@ -514,7 +455,7 @@ textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
   color: var(--muted);
   font-size: 12px;
   font-weight: 500;
-  padding: 6px 4px;
+  padding: 6px 3px;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
@@ -568,7 +509,7 @@ textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
 .toggle.on .track::after { transform: translateX(14px); }
 
 /* sliders */
-.slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .slider-row label {
   font-size: 11px;
   font-weight: 600;
@@ -1020,11 +961,11 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
 
 /* ---------- misc ---------- */
 
-.note { font-size: 12px; color: var(--muted); margin: 6px 0; }
+.note { font-size: 12px; color: var(--muted); margin: 4px 0; }
 .note.warn { color: var(--warn); }
 .note.danger { color: var(--text-strong); }
 
-.divider { height: 1px; background: var(--line); margin: 10px 0; }
+.divider { height: 1px; background: var(--line); margin: 8px 0; }
 
 .badge {
   display: inline-block;
@@ -1053,20 +994,20 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
 .lidar-canvas {
   position: absolute;
   inset: 0;
-  background: #2a1016;
+  background: var(--sunken);
   border: 1px solid var(--line-strong);
   border-radius: 6px;
 }
-/* Corner chips over the dark viewport, same voice as the camera overlay:
-   live counts top-left, the controls hint bottom-right. */
+/* Corner chips over the lidar viewport: live counts top-left, the controls
+   hint bottom-right. Light ground, so they read as surface chips. */
 .lidar-overlay {
   position: absolute;
   font-size: 11px;
   padding: 3px 9px;
   border-radius: 999px;
-  background: rgba(42, 16, 22, 0.7);
-  border: 1px solid rgba(252, 236, 223, 0.25);
-  color: rgba(252, 236, 223, 0.85);
+  background: rgba(255, 250, 244, 0.82);
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
   backdrop-filter: blur(3px);
   pointer-events: none;
   white-space: nowrap;
@@ -1102,3 +1043,130 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* ---------- fault list ---------- */
+
+/* Faults sit at the foot of the status panel. A burst of them must not be able
+   to grow the panel without bound, so the list keeps its own scroll. */
+.faults {
+  max-height: 168px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+
+.fault { margin-bottom: 6px; }
+.fault:last-child { margin-bottom: 0; }
+.fault-text { font-size: 13px; font-weight: 600; color: var(--text-strong); }
+.fault-meta { font-size: 11px; color: var(--muted); }
+
+/* The count that sits with the stats and scrolls down to the list. */
+.fault-jump {
+  margin-top: 10px;
+  cursor: pointer;
+  background: none;
+  font: inherit;
+}
+.fault-jump:hover { border-color: var(--warn); }
+
+/* ---------- control states ---------- */
+
+/* Four things can be true of a control, and they must not look alike:
+   it is on, the robot is working on it, the robot refused it, or it is not
+   offered at all right now. Colour alone never carries any of them - each
+   also changes shape, edge or marker. */
+
+/* Refused. Held for a few seconds with the reason in the tooltip, so there is
+   time to read it before the tile goes quiet again. */
+.btn.failed {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: var(--surface);
+}
+.btn.action.failed::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 6px;
+  height: 6px;
+  background: var(--danger);
+}
+
+/* Not offered: the command does not exist in the motion service the robot is
+   running. Kept visible and legible - hiding these is what made half the
+   action grid vanish - but clearly set apart from a button that is merely
+   waiting for a connection. */
+.btn.unavailable {
+  border-style: dashed;
+  border-color: var(--line-strong);
+  color: var(--faint);
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--surface),
+    var(--surface) 5px,
+    var(--sunken) 5px,
+    var(--sunken) 10px
+  );
+}
+.btn.unavailable .action-icon { color: var(--icon-dim); }
+
+/* Hover is a hint that a press will do something, so a control that cannot act
+   must not offer it. */
+.btn.unavailable:hover, .btn.failed:hover:not(:disabled) { background-color: var(--surface); }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn.action.running { animation: none; border-color: var(--text-strong); }
+  .action-busy { animation-duration: 2.4s; }
+}
+
+/* ---------- state polish ---------- */
+
+/* A toggled-on button and a primary button were the same crimson block, which
+   made "this is switched on" and "this is the main action here" indistinguish-
+   able. On is now visibly depressed, so the two differ in shape and not only
+   in colour. */
+.btn.on {
+  box-shadow: inset 0 1px 3px rgba(120, 13, 32, 0.45);
+  font-weight: 650;
+}
+.btn.on:hover:not(:disabled) { background: var(--crimson-deep); border-color: var(--crimson-deep); }
+.btn.on:disabled { background: var(--estop-off); border-color: var(--estop-off); color: var(--cream); }
+
+/* Hover on the switch itself, not just the label row, so the target reads. */
+.toggle:hover .track { border-color: var(--text-strong); }
+.toggle input:disabled ~ .track { opacity: 0.5; cursor: not-allowed; }
+
+/* The segmented control's selection carries a weight change as well as the
+   fill, for the same reason. */
+.seg-btn.active { box-shadow: inset 0 1px 2px rgba(120, 13, 32, 0.35); }
+
+@media (prefers-reduced-motion: reduce) {
+  .swatch:hover:not(:disabled) { transform: none; }
+  .btn:active:not(:disabled) { transform: none; }
+  .toggle .track, .toggle .track::after, .seg-btn, .btn { transition: none; }
+}
+
+/* Key caps on the drive dials. They sit inside the SVG so they scale with the
+   pad, and light up while that direction is actually being commanded - by the
+   keyboard, a gamepad, or the mouse. */
+.joy-key {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  fill: var(--faint);
+  pointer-events: none;
+  transition: fill 0.1s;
+}
+.joy-key.lit { fill: var(--text-strong); }
+@media (prefers-reduced-motion: reduce) {
+  .joy-key { transition: none; }
+}
+
+/* A description that immediately follows its section label belongs to it, so it
+   sits tight under the label instead of floating midway to the content. */
+.eyebrow + .note { margin-top: -3px; margin-bottom: 7px; }
+.toggle + .slider-row { margin-top: 9px; }
+
+/* A switch sitting directly above a slider row needs air between them, or the
+   track and the slider read as one crowded control. */
+.toggle + .slider-row { margin-top: 10px; }

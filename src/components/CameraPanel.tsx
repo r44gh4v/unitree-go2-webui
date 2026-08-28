@@ -141,16 +141,22 @@ export default function CameraPanel() {
       </div>
 
       <div className="camera-bar">
-        <button className={`btn sm${videoOn ? ' on' : ''}`} disabled={!connected} title="Start or stop the robot's camera feed" onClick={() => setVideo(!videoOn)}>
+        <button className={`btn sm${videoOn ? ' on' : ''}`} disabled={!connected} {...{ title: videoOn ? 'Stop the video stream' : 'Start the video stream' }} onClick={() => setVideo(!videoOn)}>
           {videoOn ? <CameraIcon size={15} /> : <CameraOffIcon size={15} />}
           Camera
         </button>
-        <button className={`btn sm${audioOn ? ' on' : ''}`} disabled={!connected} title="Start or stop the robot's microphone" onClick={() => setAudio(!audioOn)}>
+        <button className={`btn sm${audioOn ? ' on' : ''}`} disabled={!connected} {...{ title: audioOn ? 'Stop listening to the robot' : 'Listen through the robot microphone' }} onClick={() => setAudio(!audioOn)}>
           {audioOn ? <MicIcon size={15} /> : <MicOffIcon size={15} />}
           Mic
         </button>
-        <button className="btn sm ghost" disabled={!audioOn} title="Mute or unmute the robot audio in your browser" onClick={() => setMuted((m) => !m)}>
+        <button
+          className={`btn sm${!muted ? ' on' : ''}`}
+          disabled={!audioOn}
+          {...{ title: muted ? 'Play the robot audio here' : 'Silence it here; the robot keeps sending' }}
+          onClick={() => setMuted((m) => !m)}
+        >
           {muted ? <SpeakerOffIcon size={15} /> : <SpeakerIcon size={15} />}
+          Sound
         </button>
 
         <div style={{ flex: 1 }} />
@@ -160,7 +166,7 @@ export default function CameraPanel() {
             Photo failed: {photoError}
           </span>
         )}
-        <button className="btn sm" disabled={!connected || capturing} onClick={takePhoto} title="Full-resolution still from the camera">
+        <button className="btn sm" disabled={!connected || capturing} onClick={takePhoto} title="Ask the camera for a still, separate from the video stream">
           <PhotoIcon size={15} />
           {capturing ? 'Taking…' : 'Photo'}
         </button>

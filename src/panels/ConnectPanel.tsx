@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useRobot } from '../state/RobotContext'
-import { SWITCHABLE_MODES } from '../lib/constants'
+import { SWITCHABLE_MODES, type MotionMode } from '../lib/constants'
 import type { CloudRobot, ConnectMethod, DiscoveredRobot } from '../lib/types'
 import { AlertIcon, BoltIcon, CheckIcon, PlugIcon, ScanIcon } from '../components/Icons'
 
@@ -20,7 +20,7 @@ const CLOUD_SESSION_MS = 24 * 60 * 60 * 1000
 
 /** What each motion service is called in plain words. */
 const SERVICE_LABEL: Record<string, string> = {
-  normal: 'Walking',
+  normal: 'Normal',
   ai: 'AI',
   advanced: 'Advanced',
   mcf: 'Unified (1.1.7+)',
@@ -32,17 +32,23 @@ const SERVICE_NOTE: Record<string, string> = {
   advanced: 'Adds cross step, bound and one-sided step.',
 }
 
+/**
+ * The five ways to reach the robot. The first four all need the robot within
+ * radio reach of this machine and differ only in how it is located; Cloud is
+ * the one that does not care where either of you is.
+ */
 const METHODS: { value: ConnectMethod; label: string; blurb: string }[] = [
-  { value: 'ip', label: 'IP', blurb: 'On this network, address known.' },
-  { value: 'serial', label: 'Serial', blurb: 'On this network, found by serial number.' },
-  { value: 'ap', label: 'AP', blurb: "Joined the robot's own Wi-Fi hotspot." },
-  { value: 'cloud', label: 'Cloud', blurb: 'Signed in like the phone app. Works anywhere.' },
+  { value: 'ip', label: 'IP', blurb: 'You know the robot address. Type it in.' },
+  { value: 'serial', label: 'Serial', blurb: 'On this network, by serial number.' },
+  { value: 'ap', label: 'AP', blurb: "You joined the robot's own Wi-Fi. No router involved." },
+  { value: 'lan', label: 'LAN', blurb: 'Same router as this machine. Found for you.' },
+  { value: 'cloud', label: 'Cloud', blurb: 'Through your Unitree account, from anywhere.' },
 ]
 
 export default function ConnectPanel() {
   const {
     connState, connError, connect, disconnect, retry,
-    reportedMode, refreshMotionMode, switchMotionMode, log,
+    reportedMode, motionMode, setMotionMode, refreshMotionMode, switchMotionMode, log,
   } = useRobot()
 
   const [method, setMethod] = useState<ConnectMethod>(() => {
@@ -50,6 +56,7 @@ export default function ConnectPanel() {
     const saved = localStorage.getItem(STORE.method) as ConnectMethod
     return METHODS.some((m) => m.value === saved) ? saved : 'ip'
   })
+
   const [ip, setIp] = useState(() => localStorage.getItem(STORE.ip) ?? '192.168.12.1')
   const [serial, setSerial] = useState(() => localStorage.getItem(STORE.serial) ?? '')
   const [aesKey, setAesKey] = useState(() => localStorage.getItem(STORE.key) ?? '')
@@ -118,17 +125,41 @@ export default function ConnectPanel() {
 
   useEffect(() => localStorage.setItem(STORE.method, method), [method])
 
+  /** Ask the server which robots answer on its own network. */
+  const discover = async (): Promise<DiscoveredRobot[]> => {
+    const res = await fetch('/api/discover')
+    const body = (await res.json()) as { robots?: DiscoveredRobot[]; error?: string }
+    if (!res.ok) throw new Error(body.error ?? `Scan failed with HTTP ${res.status}`)
+    return body.robots ?? []
+  }
+
   const doConnect = async () => {
     setBusy(true)
+    setNote(null)
     try {
       localStorage.setItem(STORE.ip, ip.trim())
       localStorage.setItem(STORE.serial, serial.trim())
       localStorage.setItem(STORE.region, region)
       if (aesKey.trim()) localStorage.setItem(STORE.key, aesKey.trim())
       localStorage.setItem(STORE.route, preferLocal ? 'auto' : 'relay')
+
+      // LAN is the no-typing case: find whatever is on this router, then talk
+      // to it by address. The transports below it never see a 'lan' method.
+      let targetIp = ip.trim()
+      if (method === 'lan') {
+        setNote('Looking for the robot on this network…')
+        const robots = await discover()
+        if (!robots.length) {
+          throw new Error('No robot answered on this network. Check both are on the same router, or use IP.')
+        }
+        targetIp = robots[0].ip
+        setIp(targetIp)
+        setNote(robots.length > 1 ? `Found ${robots.length} robots, using ${targetIp}.` : null)
+      }
+
       await connect({
-        method,
-        ip: ip.trim(),
+        method: method === 'lan' ? 'ip' : method,
+        ip: targetIp,
         serial: method === 'cloud' ? pickedSerial : serial.trim(),
         aesKey: aesKey.trim(),
         token,
@@ -136,6 +167,7 @@ export default function ConnectPanel() {
         route: preferLocal ? 'auto' : 'relay',
       })
     } catch (e) {
+      setNote((e as Error).message)
       log(`Connection failed: ${(e as Error).message}`)
     } finally {
       setBusy(false)
@@ -147,11 +179,9 @@ export default function ConnectPanel() {
     setFound([])
     setNote(null)
     try {
-      const res = await fetch('/api/discover')
-      const body = (await res.json()) as { robots?: DiscoveredRobot[]; error?: string }
-      if (!res.ok) throw new Error(body.error ?? `Scan failed with HTTP ${res.status}`)
-      setFound(body.robots ?? [])
-      if (body.robots?.length) log(`Found ${body.robots.length} robot(s).`)
+      const robots = await discover()
+      setFound(robots)
+      if (robots.length) log(`Found ${robots.length} robot(s).`)
       else setNote('No robots answered on this network.')
     } catch (e) {
       setNote(`Scan failed: ${(e as Error).message}`)
@@ -198,7 +228,7 @@ export default function ConnectPanel() {
   const canConnect =
     method === 'ip' ? !!ip.trim()
       : method === 'serial' ? !!serial.trim()
-        : method === 'ap' ? true
+        : method === 'ap' || method === 'lan' ? true
           : !!token && !!pickedSerial
 
   const methodLabel = METHODS.find((m) => m.value === method)?.label ?? method
@@ -211,7 +241,7 @@ export default function ConnectPanel() {
   const badgeLabel =
     connState === 'connected' ? 'Linked'
       : connState === 'connecting' ? 'Connecting'
-        : connState === 'validating' ? 'Auth'
+        : connState === 'validating' ? 'Verifying'
           : connState === 'error' ? 'Failed'
             : 'Offline'
 
@@ -232,7 +262,7 @@ export default function ConnectPanel() {
                 : connState === 'connecting' ? `Reaching ${where || 'the robot'}…`
                   : connState === 'validating' ? 'Exchanging keys'
                     : connState === 'error' ? (connError ?? 'Unknown error')
-                      : 'Choose a method and connect'}
+                      : 'Choose how to reach the robot'}
             </span>
           </div>
 
@@ -306,11 +336,15 @@ export default function ConnectPanel() {
               </div>
             )}
 
-
             {method === 'ap' && (
               <p className="note">
-                Join the Wi-Fi network named after the robot's serial, then connect. Your laptop loses internet while
-                joined to it.
+                Join the Wi-Fi named after the robot's serial. This machine loses internet.
+              </p>
+            )}
+
+            {method === 'lan' && (
+              <p className="note">
+                Finds the first robot on this router. Nothing to type.
               </p>
             )}
 
@@ -339,7 +373,7 @@ export default function ConnectPanel() {
                     onKeyDown={(e) => e.key === 'Enter' && email && password && void doSignIn()}
                   />
                 </div>
-                <button className="btn block" onClick={doSignIn} disabled={signingIn || !email || !password}>
+                <button className="btn block primary" onClick={doSignIn} disabled={signingIn || !email || !password}>
                   {signingIn ? 'Signing in…' : 'Sign in'}
                 </button>
               </>
@@ -359,7 +393,7 @@ export default function ConnectPanel() {
                     if (r?.aesKey) setAesKey(r.aesKey)
                   }}
                 >
-                  {(cloudRobots ?? []).map((r) => (
+                  {cloudRobots.map((r) => (
                     <option key={r.sn} value={r.sn}>
                       {r.name ? `${r.name} - ${r.sn}` : r.sn}
                     </option>
@@ -408,7 +442,7 @@ export default function ConnectPanel() {
                   <button className="btn primary" onClick={doConnect} disabled={busy || !canConnect} style={{ flex: 1 }} title="Open the WebRTC link to the robot">
                     {busy ? 'Connecting…' : 'Connect'}
                   </button>
-                  {(method === 'ip' || method === 'serial') && (
+                  {(method === 'ip' || method === 'serial' || method === 'lan') && (
                     <button className="btn" onClick={doScan} disabled={scanning} title="Search this network for robots">
                       <ScanIcon size={14} />
                       {scanning ? 'Scanning…' : 'Scan'}
@@ -455,7 +489,7 @@ export default function ConnectPanel() {
                   aria-label="Device AES key"
                 />
                 <p className="note">
-                  Firmware 1.1.15 and newer need this for local connections. Signing in with your account fills it in.
+                  Needed on firmware 1.1.15 and newer. Signing in fills it in.
                 </p>
               </div>
             )}
@@ -466,36 +500,68 @@ export default function ConnectPanel() {
       <div className="section">
         <p className="eyebrow">Motion service</p>
         {!connected ? (
-          <p className="note">The robot reports which motion service it runs once connected.</p>
+          <p className="note">Reported once connected.</p>
         ) : (
           <>
             <div className="kv" style={{ marginBottom: 8 }}>
               <dt>Running</dt>
               <dd>{reportedMode ? SERVICE_LABEL[reportedMode] ?? reportedMode : 'asking…'}</dd>
             </div>
-            <p className="note">
-              {reportedMode === 'mcf'
-                ? 'This firmware runs one motion service for everything, so there is nothing to switch between. The Actions tab already matches it.'
-                : reportedMode
-                  ? 'Older firmware splits motion across three services. Switching takes a few seconds and the robot stands still while it happens.'
-                  : 'Reading the robot…'}
-            </p>
 
             {reportedMode && reportedMode !== 'mcf' && (
-              <div className="btn-row">
-                {SWITCHABLE_MODES.map((m) => (
-                  <button
-                    key={m}
-                    className={`btn sm${reportedMode === m ? ' on' : ''}`}
-                    disabled={reportedMode === m}
-                    title={SERVICE_NOTE[m]}
-                    onClick={() => void switchMotionMode(m).catch((e) => setNote(`Could not switch: ${e.message}`))}
-                  >
-                    {SERVICE_LABEL[m]}
-                  </button>
-                ))}
-              </div>
+              <>
+                <p className="note">
+                  Switching takes a few seconds; the robot stands still.
+                </p>
+                <div className="btn-row">
+                  {SWITCHABLE_MODES.map((m) => (
+                    <button
+                      key={m}
+                      className={`btn sm${reportedMode === m ? ' on' : ''}`}
+                      disabled={reportedMode === m}
+                      title={SERVICE_NOTE[m]}
+                      onClick={() => void switchMotionMode(m).catch((e) => setNote(`Could not switch: ${e.message}`))}
+                    >
+                      {SERVICE_LABEL[m]}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
+
+            {reportedMode === 'mcf' && (
+              <p className="note">
+                One service runs everything. Nothing to switch.
+              </p>
+            )}
+
+            {/* Which id table this console sends, not which service the robot
+                runs. There is no api that turns MCF on or off - it is simply
+                what firmware 1.1.7 and newer run - so this only exists for the
+                case where the robot's own report does not match its behaviour. */}
+            <label
+              className={`toggle${motionMode === 'mcf' ? ' on' : ''}`}
+              style={{ marginTop: 10 }}
+              title="Send the unified 1.1.7+ command ids instead of the legacy ones. Changes nothing on the robot."
+            >
+              <span className="toggle-label">Use MCF command set</span>
+              <input
+                type="checkbox"
+                checked={motionMode === 'mcf'}
+                onChange={(e) =>
+                  setMotionMode(
+                    e.target.checked
+                      ? 'mcf'
+                      : ((reportedMode && reportedMode !== 'mcf' ? reportedMode : 'normal') as MotionMode),
+                  )
+                }
+                style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
+              />
+              <span className="track" />
+            </label>
+            <p className="note">
+              Which ids this console sends. Changes nothing on the robot.
+            </p>
 
             <button
               className="btn sm ghost"
