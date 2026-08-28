@@ -279,7 +279,9 @@ button { font: inherit; color: inherit; }
 /* ---------- forms ---------- */
 
 .field { margin-bottom: 10px; }
-.field label {
+/* A switch can sit inside a field (the cloud routing option lives under the
+   robot picker); it is a control in its own right, not the field's caption. */
+.field label:not(.toggle) {
   display: block;
   font-size: 11px;
   font-weight: 600;

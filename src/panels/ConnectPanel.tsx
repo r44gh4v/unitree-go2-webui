@@ -308,6 +308,12 @@ export default function ConnectPanel() {
 
         {showForm && (
           <>
+            {serverless ? (
+              <p className="note">
+                This console is deployed in the cloud, so it has no network of its own. Signing in to your Unitree
+                account is the only way to reach the robot from here.
+              </p>
+            ) : (
             <div className="seg" role="tablist" aria-label="Connection method">
               {METHODS.map((m) => (
                 <button
@@ -323,11 +329,8 @@ export default function ConnectPanel() {
                 </button>
               ))}
             </div>
-            <p className="note">
-              {serverless && method !== 'cloud'
-                ? 'This deployment runs in the cloud and has no network of its own. Only Cloud can reach the robot from here.'
-                : METHODS.find((m) => m.value === method)?.blurb}
-            </p>
+            )}
+            {!serverless && <p className="note">{METHODS.find((m) => m.value === method)?.blurb}</p>}
 
             {method === 'ip' && (
               <div className="field">
@@ -421,6 +424,7 @@ export default function ConnectPanel() {
                     </option>
                   ))}
                 </select>
+                {!serverless && (
                 <label
                   className={`toggle${preferLocal ? ' on' : ''}`}
                   style={{ marginTop: 8 }}
@@ -442,6 +446,7 @@ export default function ConnectPanel() {
                   />
                   <span className="track" />
                 </label>
+                )}
                 <button
                   className="btn sm ghost"
                   style={{ marginTop: 4 }}
