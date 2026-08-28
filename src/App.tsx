@@ -82,48 +82,46 @@ function Rail() {
 
   return (
     <header className="rail">
-      <button className="estop" onClick={emergencyStop} disabled={!connected} title="Stop the robot (Esc)">
-        <StopIcon size={15} />
-        STOP
-      </button>
-
-      <span className={`pill pill-${connState}`} title={connState === 'error' ? (connError ?? undefined) : undefined}>
-        {badge}
-      </span>
-      {connected && <span className="rail-where">{ip}</span>}
-
-      <div className="rail-readings">
-        <Reading
-          label="Battery"
-          value={typeof soc === 'number' ? String(soc) : '-'}
-          unit="%"
-          tone={typeof soc === 'number' ? (soc < 15 ? 'bad' : soc < 30 ? 'warn' : undefined) : undefined}
-        />
-        <Reading label="Speed" value={num(speed)} unit="m/s" />
-        <Reading label="Posture" value={sportState?.mode !== undefined ? (MODE_NAMES[sportState.mode] ?? String(sportState.mode)) : '-'} />
-        <Reading label="Gait" value={GAITS.find((g) => g.value === sportState?.gait_type)?.label ?? '-'} />
-        <Reading label="Height" value={num(sportState?.body_height)} unit="m" />
-        <Reading
-          label="Hottest joint"
-          value={hottest ? String(Math.round(hottest)) : '-'}
-          unit="°C"
-          tone={hottest > 80 ? 'bad' : hottest > 65 ? 'warn' : undefined}
-        />
-        <Reading label="Messages" value={connected ? String(linkStats.rate) : '-'} unit="/s" />
+      <div className="rail-side">
+        <span className={`pill pill-${connState}`} title={connState === 'error' ? (connError ?? undefined) : undefined}>
+          {badge}
+        </span>
+        {connected && <span className="rail-where">{ip}</span>}
+        {faults > 0 && (
+          <span className="chip warn" title="Faults are listed in full on the Status panel">
+            <AlertIcon size={13} />
+            {faults} fault{faults === 1 ? '' : 's'}
+          </span>
+        )}
       </div>
 
-      <div style={{ flex: 1 }} />
+      <button className="estop" onClick={emergencyStop} disabled={!connected} title="Stop the robot immediately">
+        <StopIcon size={15} />
+        STOP
+        <kbd>Esc</kbd>
+      </button>
 
-      {faults > 0 && (
-        <span className="chip warn" title="Faults are listed in full on the Status panel">
-          <AlertIcon size={13} />
-          {faults} fault{faults === 1 ? '' : 's'}
-        </span>
-      )}
-
-      <span className="hint">
-        <kbd>Esc</kbd> stop · <kbd>WASD</kbd> walk · <kbd>QE</kbd> turn
-      </span>
+      <div className="rail-side rail-end">
+        <div className="rail-readings">
+          <Reading
+            label="Battery"
+            value={typeof soc === 'number' ? String(soc) : '-'}
+            unit="%"
+            tone={typeof soc === 'number' ? (soc < 15 ? 'bad' : soc < 30 ? 'warn' : undefined) : undefined}
+          />
+          <Reading label="Speed" value={num(speed)} unit="m/s" />
+          <Reading label="Posture" value={sportState?.mode !== undefined ? (MODE_NAMES[sportState.mode] ?? String(sportState.mode)) : '-'} />
+          <Reading label="Gait" value={GAITS.find((g) => g.value === sportState?.gait_type)?.label ?? '-'} />
+          <Reading label="Height" value={num(sportState?.body_height)} unit="m" />
+          <Reading
+            label="Hottest"
+            value={hottest ? String(Math.round(hottest)) : '-'}
+            unit="°C"
+            tone={hottest > 80 ? 'bad' : hottest > 65 ? 'warn' : undefined}
+          />
+          <Reading label="Messages" value={connected ? String(linkStats.rate) : '-'} unit="/s" />
+        </div>
+      </div>
     </header>
   )
 }

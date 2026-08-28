@@ -3,7 +3,7 @@ import { useRobot } from '../state/RobotContext'
 import { SWITCHABLE_MODES, type MotionMode } from '../lib/constants'
 import type { CloudRobot, ConnectMethod, DiscoveredRobot } from '../lib/types'
 import { lastServerInfo, probeServer } from '../lib/serverInfo'
-import { AlertIcon, BoltIcon, CheckIcon, PlugIcon, ScanIcon } from '../components/Icons'
+import { BoltIcon, ScanIcon } from '../components/Icons'
 
 const STORE = {
   method: 'go2.method',
@@ -256,24 +256,11 @@ export default function ConnectPanel() {
   // or being established, keep it visible when idle or after a failure.
   const showForm = open && !connecting
 
-  const badgeLabel =
-    connState === 'connected' ? 'Linked'
-      : connState === 'connecting' ? 'Connecting'
-        : connState === 'validating' ? 'Verifying'
-          : connState === 'error' ? 'Failed'
-            : 'Offline'
 
   return (
     <>
       <div className={`section conn conn-${connState}`}>
         <div className="conn-status">
-          <span className={`pill pill-${connState}`}>
-            {connecting ? <span className="spinner sm" />
-              : connected ? <CheckIcon size={12} />
-                : connState === 'error' ? <AlertIcon size={12} />
-                  : <PlugIcon size={12} />}
-            {badgeLabel}
-          </span>
           <div className="conn-text">
             <span className="conn-sub" title={connState === 'error' ? (connError ?? undefined) : undefined}>
               {connState === 'connected' ? `${where} · ${methodLabel}`
