@@ -1160,7 +1160,6 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
 
 /* A description that immediately follows its section label belongs to it, so it
    sits tight under the label instead of floating midway to the content. */
-.eyebrow + .note { margin-top: -2px; margin-bottom: 8px; }
 .toggle + .slider-row { margin-top: 9px; }
 
 /* A switch sitting directly above a slider row needs air between them, or the
@@ -1523,8 +1522,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
 .btn.action.running { box-shadow: none; }
 
 /* A group heading and its description are one thought. */
-.eyebrow + .note { margin-top: -4px; margin-bottom: 6px; }
-.group-head { margin-bottom: 4px; }
+.eyebrow + .note { margin-top: -4px; margin-bottom: 10px; }
 
 /* ---------- select ---------- */
 

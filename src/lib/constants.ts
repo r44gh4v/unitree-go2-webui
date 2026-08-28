@@ -323,7 +323,7 @@ export const ACTION_GROUPS: { key: ActionSpec['group']; label: string; note: str
   { key: 'posture', label: 'Stand and rest', note: 'Postures and holding still' },
   { key: 'gait', label: 'Walking styles', note: 'Picking one replaces the last' },
   { key: 'gesture', label: 'Tricks & greetings', note: 'One-off routines' },
-  { key: 'dynamic', label: 'Jumps and flips', note: 'Needs two metres of clear, soft, level floor' },
+  { key: 'dynamic', label: 'Jumps & flips', note: 'Needs two metres of clear, soft, level floor' },
   { key: 'assist', label: 'Follow and avoid', note: 'The robot steers itself' },
 ]
 

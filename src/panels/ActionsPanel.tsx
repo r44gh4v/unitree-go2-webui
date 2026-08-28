@@ -136,7 +136,7 @@ export default function ActionsPanel() {
         const items = ACTIONS.filter((a) => a.group === group.key)
         if (!items.length) return null
         return (
-          <div key={group.key} style={{ marginBottom: 12 }}>
+          <div key={group.key} style={{ marginBottom: 20 }}>
             <p className="eyebrow">{group.label}</p>
             <p className="note">{group.note}</p>
             <div className="btn-grid">
