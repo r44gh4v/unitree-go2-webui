@@ -3,7 +3,7 @@ import AuthGate from './components/AuthGate'
 import { RobotProvider, useRobot } from './state/RobotContext'
 import Split from './components/Split'
 import CameraPanel from './components/CameraPanel'
-import { AlertIcon, StopIcon } from './components/Icons'
+import { AlertIcon } from './components/Icons'
 import { MODE_NAMES } from './lib/types'
 import { GAITS } from './lib/constants'
 import ConnectPanel from './panels/ConnectPanel'
@@ -33,7 +33,12 @@ function num(v: unknown, digits = 2): string {
   return typeof v === 'number' && Number.isFinite(v) ? v.toFixed(digits) : '-'
 }
 
-function Reading({ label, value, unit, tone }: { label: string; value: string; unit?: string; tone?: string }) {
+/**
+ * One gauge. `meter` draws a fill bar under the value, which is only worth it
+ * for the two readings that have a danger threshold - a bar is read at a glance
+ * where a number has to be parsed against a limit you have to remember.
+ */
+function Reading({ label, value, unit, tone, meter }: { label: string; value: string; unit?: string; tone?: string; meter?: number | null }) {
   return (
     <div className={`reading${tone ? ` ${tone}` : ''}`}>
       <span className="reading-label">{label}</span>
@@ -41,6 +46,11 @@ function Reading({ label, value, unit, tone }: { label: string; value: string; u
         {value}
         {unit && <small> {unit}</small>}
       </span>
+      {meter !== undefined && (
+        <span className="reading-meter" aria-hidden="true">
+          <i style={{ width: `${Math.max(0, Math.min(100, meter ?? 0))}%` }} />
+        </span>
+      )}
     </div>
   )
 }
@@ -96,8 +106,7 @@ function Rail() {
       </div>
 
       <button className="estop" onClick={emergencyStop} disabled={!connected} title="Stop the robot immediately">
-        <StopIcon size={15} />
-        STOP
+        <span className="estop-label">STOP</span>
         <kbd>Esc</kbd>
       </button>
 
@@ -108,18 +117,19 @@ function Rail() {
             value={typeof soc === 'number' ? String(soc) : '-'}
             unit="%"
             tone={typeof soc === 'number' ? (soc < 15 ? 'bad' : soc < 30 ? 'warn' : undefined) : undefined}
+            meter={typeof soc === 'number' ? soc : null}
           />
-          <Reading label="Speed" value={num(speed)} unit="m/s" />
-          <Reading label="Posture" value={sportState?.mode !== undefined ? (MODE_NAMES[sportState.mode] ?? String(sportState.mode)) : '-'} />
-          <Reading label="Gait" value={GAITS.find((g) => g.value === sportState?.gait_type)?.label ?? '-'} />
-          <Reading label="Height" value={num(sportState?.body_height)} unit="m" />
           <Reading
             label="Hottest"
             value={hottest ? String(Math.round(hottest)) : '-'}
             unit="°C"
             tone={hottest > 80 ? 'bad' : hottest > 65 ? 'warn' : undefined}
+            meter={hottest ? (hottest / 100) * 100 : null}
           />
-          <Reading label="Messages" value={connected ? String(linkStats.rate) : '-'} unit="/s" />
+          <Reading label="Speed" value={num(speed)} unit="m/s" />
+          <Reading label="Posture" value={sportState?.mode !== undefined ? (MODE_NAMES[sportState.mode] ?? String(sportState.mode)) : '-'} />
+          <Reading label="Gait" value={GAITS.find((g) => g.value === sportState?.gait_type)?.label ?? '-'} />
+          <Reading label="Data" value={connected ? String(linkStats.rate) : '-'} unit="/s" />
         </div>
       </div>
     </header>
