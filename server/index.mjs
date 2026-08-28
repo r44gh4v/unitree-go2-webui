@@ -3,6 +3,7 @@
 // in app.mjs so the same code can also run as a serverless function on Vercel.
 
 import express from 'express'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createApp } from './app.mjs'
@@ -49,8 +50,26 @@ if (DEV) {
   })
 }
 
+/** Every address this machine can be reached on, so the console is findable
+ *  from a phone or a second laptop without anyone hunting for the IP. */
+function lanUrls() {
+  const out = []
+  for (const addrs of Object.values(os.networkInterfaces())) {
+    for (const a of addrs ?? []) {
+      if (a.family === 'IPv4' && !a.internal) out.push(`http://${a.address}:${PORT}`)
+    }
+  }
+  return out
+}
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[unitree_go2_webui] http://localhost:${PORT}${DEV ? ' (dev, hot reload on)' : ''}`)
+  // The server already listens on every interface; the only thing missing was
+  // saying so. Any device on this network can drive the robot through these,
+  // and unlike a cloud deployment they can use every connection method.
+  for (const url of lanUrls()) {
+    console.log(`[unitree_go2_webui] ${url}  (from any device on this network)`)
+  }
   if (locked) {
     console.log('[unitree_go2_webui] password protection is ON - every API call needs a login')
   } else {
