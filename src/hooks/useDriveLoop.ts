@@ -203,7 +203,11 @@ export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
         // this console was asking for raw velocities down a path built for
         // discrete commands, which is a large part of why it felt less steady
         // than the app. lx strafes, ly is forward, rx turns.
-        moveSticks(clamp(v.x * linear, MAX_LATERAL), v.y * linear, v.z * angular, 0)
+        //
+        // rx is negated: this codebase's z is positive-is-left, and the
+        // transcribed note claiming rx was also positive-is-left is wrong.
+        // Measured on hardware - without this, Q turned right and E turned left.
+        moveSticks(clamp(v.x * linear, MAX_LATERAL), v.y * linear, -v.z * angular, 0)
       }
 
       if (moving) {

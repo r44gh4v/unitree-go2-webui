@@ -42,7 +42,14 @@ export interface RobotApi {
   setVideo: (on: boolean) => void
   setAudio: (on: boolean) => void
   /** resolved api id for an action under the current motion mode, or null */
-  apiIdFor: (a: ActionSpec) => number | null
+  /**
+   * Which id to send for an action, and whether the running motion service
+   * actually lists it. `exact: false` means we are falling back to another
+   * service's id - the robot may well accept it, and if it does not it answers
+   * "API not registered", which is a better outcome than the console deciding
+   * on the robot's behalf that the button cannot be pressed.
+   */
+  apiIdFor: (a: ActionSpec) => { apiId: number; exact: boolean; from: MotionMode } | null
   sport: (apiId: number, parameter?: unknown) => Promise<ApiResponse>
   runAction: (a: ActionSpec, toggleOn?: boolean) => Promise<ApiResponse>
   move: (x: number, y: number, z: number) => void
@@ -256,18 +263,32 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     [conn],
   )
 
-  const apiIdFor = useCallback((a: ActionSpec) => a.ids[motionMode] ?? null, [motionMode])
+  const apiIdFor = useCallback(
+    (a: ActionSpec) => {
+      const exact = a.ids[motionMode]
+      if (exact !== undefined) return { apiId: exact, exact: true, from: motionMode }
+      // Our id tables are transcriptions, not the robot's own manifest, so an
+      // action missing from the running service may simply be missing from our
+      // table. Offer the id we do have and let the robot be the one to refuse.
+      for (const mode of ['mcf', 'ai', 'advanced', 'normal'] as MotionMode[]) {
+        const id = a.ids[mode]
+        if (id !== undefined) return { apiId: id, exact: false, from: mode }
+      }
+      return null
+    },
+    [motionMode],
+  )
 
   const runAction = useCallback(
     (a: ActionSpec, toggleOn = true) => {
-      const apiId = a.ids[motionMode]
-      if (apiId === undefined) {
-        return Promise.reject(new Error(`${a.label} is not available in ${motionMode} mode`))
+      const resolved = apiIdFor(a)
+      if (!resolved) {
+        return Promise.reject(new Error(`${a.label} has no known command id`))
       }
       const parameter = a.toggle ? { data: toggleOn } : a.parameter
-      return conn.request(TOPICS.SPORT_MOD, apiId, parameter)
+      return conn.request(TOPICS.SPORT_MOD, resolved.apiId, parameter)
     },
-    [conn, motionMode],
+    [conn, apiIdFor],
   )
 
   const move = useCallback(

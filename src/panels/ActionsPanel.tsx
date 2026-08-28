@@ -13,12 +13,20 @@ type Phase = 'idle' | 'pending' | 'on' | 'failed'
  * Tooltip text: what the action does, then whatever the operator needs to know
  * before pressing it, and the api id last for anyone reading the protocol.
  */
-function describe(a: ActionSpec, apiId: number | null, mode: string, phase: Phase, reason?: string): string {
+function describe(
+  a: ActionSpec,
+  resolved: { apiId: number; exact: boolean; from: string } | null,
+  mode: string,
+  phase: Phase,
+  reason?: string,
+): string {
   const parts = [a.note ?? a.label]
-  if (apiId === null) parts.push(`Not available while the robot runs the ${mode} motion service.`)
+  if (!resolved) parts.push('No command id is known for this action.')
   else if (phase === 'failed' && reason) parts.push(reason)
-  else if (a.toggle) parts.push(phase === 'on' ? 'Press again to stop.' : 'Stays on until pressed again.')
-  if (apiId !== null) parts.push(`api ${apiId}`)
+  else if (!resolved.exact) {
+    parts.push(`The ${mode} service does not list this. Sends the ${resolved.from} id, and the robot may refuse it.`)
+  } else if (a.toggle) parts.push(phase === 'on' ? 'Press again to stop.' : 'Stays on until pressed again.')
+  if (resolved) parts.push(`api ${resolved.apiId}`)
   return parts.join(' · ')
 }
 
@@ -121,8 +129,12 @@ export default function ActionsPanel() {
             <p className="note">{group.note}</p>
             <div className="btn-grid">
               {items.map((a) => {
-                const apiId = apiIdFor(a)
-                const unavailable = connected && apiId === null
+                const resolved = apiIdFor(a)
+                // Only genuinely unknown actions are blocked. One the running
+                // service does not list is still offered, marked untested, and
+                // the robot gets to be the one that says no.
+                const unavailable = !resolved
+                const untested = connected && !!resolved && !resolved.exact
                 // Pose mode is shared state - the drive loop reads it too - so
                 // it comes from the context rather than this panel's own map.
                 const p: Phase = a.name === 'Pose' ? (posing ? 'on' : 'idle') : (phase[a.name] ?? 'idle')
@@ -136,11 +148,12 @@ export default function ActionsPanel() {
                       p === 'pending' ? 'running' : '',
                       p === 'failed' ? 'failed' : '',
                       unavailable ? 'unavailable' : '',
+                      untested ? 'untested' : '',
                     ].filter(Boolean).join(' ')}
                     aria-pressed={a.toggle ? p === 'on' : undefined}
                     aria-busy={p === 'pending' || undefined}
                     disabled={!connected || unavailable || p === 'pending'}
-                    title={describe(a, apiId, motionMode, p, reason[a.name])}
+                    title={describe(a, resolved, motionMode, p, reason[a.name])}
                     onClick={() => fire(a)}
                   >
                     {p === 'pending' && <span className="action-busy" />}
@@ -156,7 +169,8 @@ export default function ActionsPanel() {
       })}
 
       <p className="note" style={{ marginTop: 10 }}>
-        <span className="badge">!</span> needs clear, soft floor. Hatched means missing from the {motionMode} service.
+        <span className="badge">!</span> needs clear, soft floor. Dashed means the {motionMode} service does not list it -
+        it is still worth a try, and the robot will say if it cannot.
       </p>
     </div>
   )

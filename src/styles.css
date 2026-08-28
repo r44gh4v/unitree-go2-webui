@@ -1510,3 +1510,9 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
 .rail { padding: 4px 10px; }
 .rail .estop { padding: 3px; }
 .rail .estop kbd { padding: 3px 11px; }
+
+/* An action the running service does not list. Still pressable - our id tables
+   are transcriptions, not the robot's manifest - but marked so a refusal is
+   expected rather than surprising. */
+.btn.untested { border: 1px dashed var(--line-strong); }
+.btn.untested:hover:not(:disabled) { border-style: dashed; border-color: var(--text-strong); }
