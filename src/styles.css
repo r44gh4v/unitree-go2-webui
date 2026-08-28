@@ -1501,41 +1501,18 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
 
 /* ---------- rail telemetry ---------- */
 
-/* Height was the reading nobody used at a glance - it is in Status with the
-   rest - so the six that remain each get room to breathe instead of six
-   cramped columns of 9px type. Battery and joint temperature carry a fill bar
-   because both have a threshold: a bar is read at a glance, a number has to be
-   checked against a limit you are expected to remember. */
-.rail-readings { padding: 4px 5px; gap: 0; }
-.reading {
-  gap: 2px;
-  padding: 1px 12px;
-  min-width: 66px;
-}
-.reading-label { font-size: 10px; color: var(--muted); }
-.reading-value { font-size: 13px; line-height: 1.25; }
-.reading-value small { font-size: 10px; }
+/* The readings sit straight on the rail. Wrapping them in their own surface
+   capsule made a second container inside a bar that is already a container,
+   and it read as a widget stuck on rather than part of the strip. */
+.rail-readings { background: none; border-radius: 0; padding: 0; }
+.reading { padding: 0 12px; min-width: 0; gap: 0; }
+.reading:first-child { padding-left: 0; }
+.reading:last-child { padding-right: 0; border-right: none; }
+.reading-label { font-size: 9px; color: var(--faint); line-height: 1.35; }
+.reading-value { font-size: 12px; line-height: 1.3; }
+.reading-value small { font-size: 9px; }
 
-.reading-meter {
-  display: block;
-  height: 3px;
-  border-radius: var(--pill);
-  background: var(--sunken);
-  overflow: hidden;
-  margin-top: 1px;
-}
-.reading-meter i {
-  display: block;
-  height: 100%;
-  border-radius: var(--pill);
-  background: var(--ok);
-  transition: width 0.4s ease;
-}
-.reading.warn .reading-meter i { background: var(--warn); }
-.reading.bad .reading-meter i { background: var(--danger); }
-
-/* A reading with no bar keeps the same overall height as one with a bar, so
-   the row sits on one baseline instead of stepping up and down. */
-.reading:not(:has(.reading-meter)) .reading-value { padding-bottom: 4px; }
-
-@media (prefers-reduced-motion: reduce) { .reading-meter i { transition: none; } }
+/* Back to a compact bar now the gauges are gone from it. */
+.rail { padding: 4px 10px; }
+.rail .estop { padding: 3px; }
+.rail .estop kbd { padding: 3px 11px; }
