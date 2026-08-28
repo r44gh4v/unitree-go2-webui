@@ -1172,3 +1172,35 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
 /* A switch sitting directly above a slider row needs air between them, or the
    track and the slider read as one crowded control. */
 .toggle + .slider-row { margin-top: 10px; }
+
+/* ---------- readouts ---------- */
+
+/* Anything the robot is telling us right now is set in the mono face with
+   tabular figures. Instruments label in sans and read out in mono, and the
+   split is what makes a number scan as a measurement rather than as prose.
+   Tabular figures also stop live values jittering their own width as they
+   count - a 1 and a 7 occupy the same column, so nothing twitches at 20Hz. */
+.stat .value,
+.val,
+.kv dd,
+.reading-value,
+.chip b,
+.footer b,
+.pill,
+.table td.num,
+.fault-meta,
+.lidar-overlay {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* The unit is not the measurement: keep it quiet so the figure carries. */
+.stat .value small, .val small { font-family: var(--sans); color: var(--muted); font-weight: 500; }
+
+/* Status pills are state, not prose - small caps mono reads as a lamp label. */
+.pill {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
