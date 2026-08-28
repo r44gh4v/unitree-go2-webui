@@ -94,11 +94,12 @@ refused without it. A cloud deployment with no password does not fall open -
 the API refuses to serve and the page says what to configure.
 
 A deployed console is the same interface with the same features; what changes is
-which connection method can reach the robot. Use the **Unitree account** method:
-sign in, pick the robot, and the link is relayed through Unitree's TURN servers
-exactly as the phone app does it. The address, serial, and hotspot methods need
-the console to be on the robot's own network, so from the cloud they answer with
-a message saying as much - run the console at home for those.
+which connection method can reach the robot. A cloud deployment has no network
+of its own, so **Cloud** is the only method offered there - the other four are
+greyed out with the reason, rather than failing later with a message about
+routers. Sign in, pick the robot, and the link is relayed through Unitree's TURN
+servers exactly as the phone app does it. Run the console at home for IP,
+Serial, AP and LAN.
 
 Latency grows with distance - expect the video to lag more than on your own
 Wi-Fi, and drive accordingly. The Esc stop works the same either way.
@@ -128,12 +129,12 @@ Drive with **W A S D** and turn with **Q** and **E**, or drag the two sticks, or
 plug in a gamepad. Movement only happens while an input is held; releasing sends
 a stop.
 
-Before the robot will walk, it usually needs *Stand up* followed by *Balance
-stand*. If it has fallen over, use *Recover*.
+Before the robot will walk, it usually needs *Stand up* followed by *Ready
+stance*. If it has fallen over, use *Recover*.
 
-Flips, jumps, and handstands are behind the *Allow dynamic moves* switch on the
-Actions tab. They need clear space and a soft floor, and they can damage the
-robot or injure someone standing nearby.
+Flips, jumps and handstands are marked with a **!** on the Actions tab. They
+need two metres of clear, soft, level floor, and they can damage the robot or
+injure someone standing nearby.
 
 When the robot reports a fault - an overheating motor, a failed service - it
 appears as a message in the corner whichever tab you are on, so it is not missed
@@ -141,11 +142,14 @@ while you are watching the camera. The full list stays on the Status panel.
 
 ### Motion modes
 
-The robot exposes different commands depending on which motion mode it is in.
-*Normal* covers walking and gestures. *AI* unlocks flips, the handstand, and the
-free gaits. *MCF* is the command set used by firmware 1.1.7 and newer. The
-Actions tab shows only what the selected mode supports; use *Read robot* to
-see which mode the robot thinks it is in.
+The robot exposes different commands depending on which motion service it runs.
+*Normal* covers walking and gestures. *AI* unlocks flips, the handstand and the
+free gaits. *MCF* is the single unified service firmware 1.1.7 and newer run;
+there is no api that turns it on or off, so the console reports what the robot
+says and lets you pick which id table to send. The Actions tab lists every
+action whatever the service - the ones the running service does not carry are
+hatched and say so, rather than disappearing. Use *Re-check* to ask the robot
+again.
 
 ### Camera
 
@@ -289,7 +293,7 @@ reverse-engineered JavaScript client).
 ## Safety
 
 This drives a 15 kg machine that can move faster than you can step back. Give it
-room, keep the Esc key in reach, and do not enable dynamic moves indoors near
+room, keep the Esc key in reach, and do not run the **!** moves indoors near
 furniture or people.
 
 ## Credits

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useRobot } from '../state/RobotContext'
 import { SWITCHABLE_MODES, type MotionMode } from '../lib/constants'
 import type { CloudRobot, ConnectMethod, DiscoveredRobot } from '../lib/types'
+import { lastServerInfo, probeServer } from '../lib/serverInfo'
 import { AlertIcon, BoltIcon, CheckIcon, PlugIcon, ScanIcon } from '../components/Icons'
 
 const STORE = {
@@ -51,11 +52,28 @@ export default function ConnectPanel() {
     reportedMode, motionMode, setMotionMode, refreshMotionMode, switchMotionMode, log,
   } = useRobot()
 
+  // A cloud deployment has no network of its own, so every method that reaches
+  // the robot through the server's LAN is dead there and says so rather than
+  // failing with a message about routers.
+  const [serverless, setServerless] = useState(() => lastServerInfo()?.serverless ?? false)
+  useEffect(() => {
+    if (lastServerInfo()) return
+    void probeServer().then((i) => setServerless(i.serverless))
+  }, [])
+
   const [method, setMethod] = useState<ConnectMethod>(() => {
     // Guard against a method saved by an older build (e.g. a removed one).
     const saved = localStorage.getItem(STORE.method) as ConnectMethod
+    if (lastServerInfo()?.serverless) return 'cloud'
     return METHODS.some((m) => m.value === saved) ? saved : 'ip'
   })
+
+  // If the probe lands after mount and this is a cloud deployment, move off a
+  // method that cannot work here.
+  useEffect(() => {
+    if (serverless && method !== 'cloud') setMethod('cloud')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverless])
 
   const [ip, setIp] = useState(() => localStorage.getItem(STORE.ip) ?? '192.168.12.1')
   const [serial, setSerial] = useState(() => localStorage.getItem(STORE.serial) ?? '')
@@ -297,15 +315,19 @@ export default function ConnectPanel() {
                   role="tab"
                   aria-selected={method === m.value}
                   className={`seg-btn${method === m.value ? ' active' : ''}`}
-                  disabled={locked}
-                  title={m.blurb}
+                  disabled={locked || (serverless && m.value !== 'cloud')}
+                  title={serverless && m.value !== 'cloud' ? 'This deployment has no network of its own - use Cloud.' : m.blurb}
                   onClick={() => setMethod(m.value)}
                 >
                   {m.label}
                 </button>
               ))}
             </div>
-            <p className="note">{METHODS.find((m) => m.value === method)?.blurb}</p>
+            <p className="note">
+              {serverless && method !== 'cloud'
+                ? 'This deployment runs in the cloud and has no network of its own. Only Cloud can reach the robot from here.'
+                : METHODS.find((m) => m.value === method)?.blurb}
+            </p>
 
             {method === 'ip' && (
               <div className="field">
@@ -442,7 +464,7 @@ export default function ConnectPanel() {
                   <button className="btn primary" onClick={doConnect} disabled={busy || !canConnect} style={{ flex: 1 }} title="Open the WebRTC link to the robot">
                     {busy ? 'Connecting…' : 'Connect'}
                   </button>
-                  {(method === 'ip' || method === 'serial' || method === 'lan') && (
+                  {!serverless && (method === 'ip' || method === 'serial' || method === 'lan') && (
                     <button className="btn" onClick={doScan} disabled={scanning} title="Search this network for robots">
                       <ScanIcon size={14} />
                       {scanning ? 'Scanning…' : 'Scan'}
