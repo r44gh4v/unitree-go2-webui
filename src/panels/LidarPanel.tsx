@@ -295,7 +295,7 @@ export default function LidarPanel() {
             {new Date(stats.ts).toLocaleTimeString()}
           </span>
         )}
-        <span className="lidar-overlay br">1 m grid. Drag to orbit, scroll to zoom.</span>
+        <span className="lidar-overlay br">1 m grid | Drag to orbit, scroll to zoom</span>
       </div>
     </div>
   )
