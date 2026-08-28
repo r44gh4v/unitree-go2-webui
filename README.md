@@ -95,11 +95,49 @@ the API refuses to serve and the page says what to configure.
 
 A deployed console is the same interface with the same features; what changes is
 which connection method can reach the robot. A cloud deployment has no network
-of its own, so **Cloud** is the only method offered there - the other four are
-greyed out with the reason, rather than failing later with a message about
-routers. Sign in, pick the robot, and the link is relayed through Unitree's TURN
-servers exactly as the phone app does it. Run the console at home for IP,
-Serial, AP and LAN.
+of its own, so **Cloud** is the only method offered there. Sign in, pick the
+robot, and the link is relayed through Unitree's TURN servers exactly as the
+phone app does it.
+
+### Why a deployed console cannot use IP, Serial, AP or LAN
+
+Not a limitation of this project, and not fixable in the frontend. The SDP
+handshake is plain HTTP to the robot, and the robot's server sends no CORS
+headers at all - measured against real hardware:
+
+```
+POST http://<robot>:9991/con_notify   Origin: https://<your>.vercel.app
+  -> HTTP 200, Server: Boost.Beast/1.0
+     Access-Control-Allow-Origin: (none)
+```
+
+It also answers `OPTIONS` with a `con_notify` body rather than preflight
+headers, so it has no CORS handling whatsoever. A browser may *send* the
+handshake but can never *read* the reply, and the reply is the SDP answer.
+Mixed content is solvable (Chrome's `targetAddressSpace`); this is not.
+
+Something on the robot's own network therefore has to do the signalling. This is
+the same conclusion legion1581/unitree_ui reached: its browser code posts to a
+same-origin `/robot-api/...` path with an `X-Robot-Host` header, and a local
+Vite plugin forwards that to the robot.
+
+### Reaching the local console from your phone or another machine
+
+`npm start` already listens on every interface, and now prints the addresses:
+
+```
+[unitree_go2_webui] http://localhost:8080
+[unitree_go2_webui] http://192.168.1.24:8080  (from any device on this network)
+```
+
+Open that second URL from a phone, tablet or another laptop on the same Wi-Fi
+and every connection method works, because the signalling runs on a machine that
+can actually see the robot. Run it on something always-on - a Pi, a NAS, a spare
+laptop - and it becomes the single URL for every device at home, with the Vercel
+deployment there for when you are out.
+
+Set `WEBUI_PASSWORD` before doing this. Anything that can reach the port can
+drive the robot.
 
 Latency grows with distance - expect the video to lag more than on your own
 Wi-Fi, and drive accordingly. The Esc stop works the same either way.

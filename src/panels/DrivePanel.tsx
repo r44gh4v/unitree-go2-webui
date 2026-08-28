@@ -30,11 +30,12 @@ export default function DrivePanel() {
   const { connState, conn, sport, motionMode, posing, log } = useRobot()
   const connected = connState === 'connected'
 
-  // Full-stick speeds, matching what the handheld remote and the phone app
-  // give you in normal mode. The drive loop ramps toward these rather than
-  // stepping straight to them, so they no longer arrive as a shock to the gait.
+  // Commands go out as stick deflection now, not velocities, so these scale
+  // how far a full input pushes the stick. The robot keeps its own speed
+  // envelope, exactly as it does for the handheld remote; use Pace below to
+  // change how fast it actually walks.
   const [linear, setLinear] = useState(1.0)
-  const [angular, setAngular] = useState(1.5)
+  const [angular, setAngular] = useState(1.0)
   const [bodyHeight, setBodyHeight] = useState(0)
   const [footHeight, setFootHeight] = useState(0)
   const [speedLevel, setSpeedLevel] = useState(0)
@@ -157,7 +158,7 @@ export default function DrivePanel() {
           {posing
             ? 'Pose mode - the sticks lean the body. Turn it off in Actions to walk.'
             : moving
-              ? `${(active.y * linear).toFixed(2)} fwd · ${(-active.x * linear).toFixed(2)} side · ${(active.z * angular).toFixed(2)} yaw`
+              ? `${(active.y * linear).toFixed(2)} fwd · ${(active.x * linear).toFixed(2)} side · ${(active.z * angular).toFixed(2)} turn`
               : gamepadName
                 ? `Gamepad: ${gamepadName.slice(0, 22)}`
                 : 'Hold W A S D to walk, Q and E to turn.'}
@@ -165,13 +166,13 @@ export default function DrivePanel() {
 
         <div className="slider-row">
           <label htmlFor="lin">Walk</label>
-          <input id="lin" type="range" min={0.1} max={2.5} step={0.05} value={linear} disabled={posing} title="Top forward and sideways speed at full stick" onChange={(e) => setLinear(Number(e.target.value))} />
-          <span className="val">{linear.toFixed(2)} m/s</span>
+          <input id="lin" type="range" min={0.2} max={1} step={0.05} value={linear} disabled={posing} title="How far a full input pushes the walk stick" onChange={(e) => setLinear(Number(e.target.value))} />
+          <span className="val">{Math.round(linear * 100)}%</span>
         </div>
         <div className="slider-row">
           <label htmlFor="ang">Turn</label>
-          <input id="ang" type="range" min={0.1} max={3} step={0.05} value={angular} disabled={posing} title="Top turning speed at full stick" onChange={(e) => setAngular(Number(e.target.value))} />
-          <span className="val">{angular.toFixed(2)} r/s</span>
+          <input id="ang" type="range" min={0.2} max={1} step={0.05} value={angular} disabled={posing} title="How far a full input pushes the turn stick" onChange={(e) => setAngular(Number(e.target.value))} />
+          <span className="val">{Math.round(angular * 100)}%</span>
         </div>
 
         <label

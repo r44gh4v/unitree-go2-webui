@@ -309,10 +309,16 @@ export default function ConnectPanel() {
         {showForm && (
           <>
             {serverless ? (
-              <p className="note">
-                This console is deployed in the cloud, so it has no network of its own. Signing in to your Unitree
-                account is the only way to reach the robot from here.
-              </p>
+              <>
+                <p className="note">
+                  This console is deployed in the cloud, so it has no network of its own. Signing in to your Unitree
+                  account is the only way to reach the robot from here.
+                </p>
+                <p className="note">
+                  To use IP, Serial, AP or LAN, run the console on a machine at home and open the address it prints.
+                  The robot's handshake sends no CORS headers, so the signalling has to happen on its own network.
+                </p>
+              </>
             ) : (
             <div className="seg" role="tablist" aria-label="Connection method">
               {METHODS.map((m) => (

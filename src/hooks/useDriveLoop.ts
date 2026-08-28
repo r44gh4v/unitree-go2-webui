@@ -27,15 +27,15 @@ export interface DriveVector {
 }
 
 export interface DriveLimits {
-  /** metres per second at full stick */
+  /** how far a full input deflects the stick, 0..1 */
   linear: number
-  /** radians per second at full stick */
+  /** how far a full turn input deflects the stick, 0..1 */
   angular: number
 }
 
 const ZERO: DriveVector = { x: 0, y: 0, z: 0 }
 
-/** The robot refuses sideways commands beyond this, whatever the slider says. */
+/** Stick deflection is normalised, so nothing may exceed full travel. */
 const MAX_LATERAL = 1.0
 
 /**
@@ -63,7 +63,7 @@ function approach(current: number, target: number): number {
  * while moving - a single Move command only produces a short step.
  */
 export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
-  const { move, setEuler, posing, connState } = useRobot()
+  const { moveSticks, setEuler, posing, connState } = useRobot()
   const stick = useRef<DriveVector>(ZERO)
   const keys = useRef(new Set<string>())
   const gamepadIndex = useRef<number | null>(null)
@@ -197,9 +197,13 @@ export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
           setEuler(v.x * EULER_LIMITS.roll, v.y * EULER_LIMITS.pitch, v.z * EULER_LIMITS.yaw)
           return
         }
-        // Stick y is forward, x is right; the robot takes x forward, y left.
-        // Sideways is capped lower than forward because the robot itself is.
-        move(v.y * linear, clamp(-v.x * linear, MAX_LATERAL), v.z * angular)
+        // The wireless controller takes stick deflection, not velocities, and
+        // the robot applies its own envelope to it - exactly as it does for the
+        // handheld remote. Driving through the sport Move api instead meant
+        // this console was asking for raw velocities down a path built for
+        // discrete commands, which is a large part of why it felt less steady
+        // than the app. lx strafes, ly is forward, rx turns.
+        moveSticks(clamp(v.x * linear, MAX_LATERAL), v.y * linear, v.z * angular, 0)
       }
 
       if (moving) {
@@ -231,7 +235,7 @@ export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
       // velocity command as the last thing it heard. Zeros only - see above.
       if (inMotion) {
         if (posingRef.current) setEuler(0, 0, 0)
-        else move(0, 0, 0)
+        else moveSticks(0, 0, 0, 0)
       }
       trailing.current = 0
       keys.current.clear()
@@ -239,7 +243,7 @@ export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
       sent.current = ZERO
       setActive(ZERO)
     }
-  }, [enabled, connState, move, setEuler])
+  }, [enabled, connState, moveSticks, setEuler])
 
   return { setStick, active, gamepadName }
 }

@@ -46,6 +46,11 @@ export interface RobotApi {
   sport: (apiId: number, parameter?: unknown) => Promise<ApiResponse>
   runAction: (a: ActionSpec, toggleOn?: boolean) => Promise<ApiResponse>
   move: (x: number, y: number, z: number) => void
+  /**
+   * Stick frame on the wireless-controller topic - the wire the handheld
+   * remote itself uses, and the only one legion1581/unitree_ui drives with.
+   */
+  moveSticks: (lx: number, ly: number, rx: number, ry: number) => void
   /** body attitude in radians; only obeyed while the robot is in pose mode */
   setEuler: (roll: number, pitch: number, yaw: number) => void
   stopMove: () => void
@@ -281,6 +286,14 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     [conn],
   )
 
+  const moveSticks = useCallback(
+    (lx: number, ly: number, rx: number, ry: number) => {
+      // Quiet: this is a 20Hz stream and would drown the console log.
+      conn.publish(TOPICS.WIRELESS_CONTROLLER, { lx, ly, rx, ry }, DATA_CHANNEL_TYPE.MSG, true)
+    },
+    [conn],
+  )
+
   const stopMove = useCallback(() => {
     conn.sendNoReply(TOPICS.SPORT_MOD, SPORT_CMD.StopMove, undefined, true)
   }, [conn])
@@ -347,6 +360,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       sport,
       runAction,
       move,
+      moveSticks,
       setEuler,
       stopMove,
       emergencyStop,
@@ -356,7 +370,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       clearErrors,
       log,
     }),
-    [conn, connState, connError, ip, lowState, sportState, traffic, robotErrors, stream, videoOn, audioOn, posing, motionMode, reportedMode, linkStats, connect, canRetry, retry, disconnect, setVideo, setAudio, apiIdFor, sport, runAction, move, setEuler, stopMove, emergencyStop, refreshMotionMode, switchMotionMode, clearTraffic, clearErrors, log],
+    [conn, connState, connError, ip, lowState, sportState, traffic, robotErrors, stream, videoOn, audioOn, posing, motionMode, reportedMode, linkStats, connect, canRetry, retry, disconnect, setVideo, setAudio, apiIdFor, sport, runAction, move, moveSticks, setEuler, stopMove, emergencyStop, refreshMotionMode, switchMotionMode, clearTraffic, clearErrors, log],
   )
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>

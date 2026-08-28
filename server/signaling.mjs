@@ -15,13 +15,28 @@ import {
   rsaEncrypt,
 } from './crypto.mjs'
 
+/**
+ * What the robot's HTTP status actually means to an operator. The board runs
+ * one WebRTC client at a time, so 429 is by far the most common failure and
+ * says nothing useful on its own. Status meanings follow the same reading as
+ * legion1581/unitree_ui, which hit all three against real hardware.
+ */
+function explainStatus(status) {
+  if (status === 429) {
+    return 'The robot already has a client connected. Close the Unitree app, or any other tab holding this robot, wait about five seconds and try again.'
+  }
+  if (status === 504) return 'The robot is mid-transition and did not answer in time. Wait a few seconds and try again.'
+  if (status === 403) return 'The robot refused the connection. Check the serial number and the device AES key.'
+  return null
+}
+
 async function post(url, body, headers, timeoutMs = 8000) {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
     const res = await fetch(url, { method: 'POST', body, headers, signal: ctrl.signal })
     const text = await res.text()
-    if (!res.ok) throw new Error(`${url} returned HTTP ${res.status}`)
+    if (!res.ok) throw new Error(explainStatus(res.status) ?? `${url} returned HTTP ${res.status}`)
     return text
   } finally {
     clearTimeout(timer)
