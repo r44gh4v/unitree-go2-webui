@@ -50,7 +50,7 @@ export default function StatusPanel() {
   if (connState !== 'connected') {
     return (
       <div className="section">
-        <p className="note">Status appears once the robot is connected.</p>
+        <p className="note">Status appears once the robot is connected</p>
       </div>
     )
   }
@@ -205,7 +205,7 @@ export default function StatusPanel() {
 
       <details className="section drawer">
         <summary className="eyebrow">Ask the robot</summary>
-        <p className="note">Reads a value back.</p>
+        <p className="note">Reads a value back</p>
         <div className="btn-row">
           {SPORT_QUERIES.map((q) => (
             <button

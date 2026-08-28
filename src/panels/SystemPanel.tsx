@@ -83,7 +83,7 @@ const SETTINGS: SettingSpec[] = [
   {
     key: 'remotePermission',
     label: 'Allow connections over the internet',
-    note: 'Whether the robot accepts cloud-relayed connections at all.',
+    note: 'Whether the robot accepts cloud-relayed connections at all',
     topic: TOPICS.RM_CON,
     setId: RM_CON_API.SET_PERMISSION,
     getId: RM_CON_API.GET_PERMISSION,
@@ -97,7 +97,7 @@ const SETTINGS: SettingSpec[] = [
   {
     key: 'silent',
     label: 'Silent start',
-    note: 'Do not start the motion service automatically at boot.',
+    note: 'Do not start the motion service automatically at boot',
     topic: TOPICS.MOTION_SWITCHER,
     setId: MOTION_SWITCHER_API.SET_SILENT,
     getId: MOTION_SWITCHER_API.GET_SILENT,
@@ -275,7 +275,7 @@ export default function SystemPanel() {
   if (!connected) {
     return (
       <div className="section">
-        <p className="note">System information appears once the robot is connected.</p>
+        <p className="note">System information appears once the robot is connected</p>
       </div>
     )
   }
@@ -373,7 +373,7 @@ export default function SystemPanel() {
       {services === null ? (
         <p className="note">Asking the robot for its service list…</p>
       ) : services.length === 0 ? (
-        <p className="note">The robot reported no services.</p>
+        <p className="note">The robot reported no services</p>
       ) : (
         <table className="table">
           <thead>
@@ -409,7 +409,7 @@ export default function SystemPanel() {
           {svcError}
         </p>
       )}
-      <p className="note">Stopping a motion service disables driving.</p>
+      <p className="note">Stopping a motion service disables driving</p>
 
       <div className="divider" />
       <p className="eyebrow">Robot information</p>
@@ -494,7 +494,7 @@ export default function SystemPanel() {
           Traffic saving: {trafficError}
         </p>
       )}
-      <p className="note">Full bandwidth before the lidar, saving otherwise.</p>
+      <p className="note">Full bandwidth before the lidar, saving otherwise</p>
     </div>
   )
 }

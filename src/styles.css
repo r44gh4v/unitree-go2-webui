@@ -278,7 +278,7 @@ button { font: inherit; color: inherit; }
 
 /* ---------- forms ---------- */
 
-.field { margin-bottom: 10px; }
+.field { margin-bottom: 13px; }
 /* A switch can sit inside a field (the cloud routing option lives under the
    robot picker); it is a control in its own right, not the field's caption. */
 .field label:not(.toggle) {
@@ -511,7 +511,7 @@ textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
 .toggle.on .track::after { transform: translateX(14px); }
 
 /* sliders */
-.slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
 .slider-row label {
   font-size: 11px;
   font-weight: 600;
@@ -614,7 +614,9 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
   color: var(--muted);
   font-size: 12px;
   padding: 20px;
-  max-width: 360px;
+  /* Wide enough for the longest line this shows without wrapping it, but still
+     a readable measure if the camera panel is dragged very wide. */
+  max-width: 440px;
 }
 .camera .placeholder b {
   font-size: 13px;
@@ -963,11 +965,11 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
 
 /* ---------- misc ---------- */
 
-.note { font-size: 12px; color: var(--muted); margin: 4px 0; }
+.note { font-size: 12px; color: var(--muted); margin: 5px 0 7px; }
 .note.warn { color: var(--warn); }
 .note.danger { color: var(--text-strong); }
 
-.divider { height: 1px; background: var(--line); margin: 8px 0; }
+.divider { height: 1px; background: var(--line); margin: 16px -12px 13px; }
 
 .badge {
   display: inline-block;
@@ -1166,7 +1168,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
 
 /* A description that immediately follows its section label belongs to it, so it
    sits tight under the label instead of floating midway to the content. */
-.eyebrow + .note { margin-top: -3px; margin-bottom: 7px; }
+.eyebrow + .note { margin-top: -2px; margin-bottom: 8px; }
 .toggle + .slider-row { margin-top: 9px; }
 
 /* A switch sitting directly above a slider row needs air between them, or the
@@ -1175,9 +1177,11 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
 
 /* ---------- readouts ---------- */
 
-/* Anything the robot is telling us right now is set in the mono face with
-   tabular figures. Instruments label in sans and read out in mono, and the
-   split is what makes a number scan as a measurement rather than as prose.
+/* Measurements are set in the mono face with tabular figures. The split is
+   what makes a number scan as a measurement rather than as prose - which only
+   works if it is kept to actual measurements. Words in a status pill, a fault
+   description or a hint over the lidar are language, and they stay in the
+   text face.
    Tabular figures also stop live values jittering their own width as they
    count - a 1 and a 7 occupy the same column, so nothing twitches at 20Hz. */
 .stat .value,
@@ -1185,11 +1189,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
 .kv dd,
 .reading-value,
 .chip b,
-.footer b,
-.pill,
-.table td.num,
-.fault-meta,
-.lidar-overlay {
+.table td.num {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
@@ -1329,7 +1329,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
 .btn.sm { padding: 5px 12px; font-size: 12px; }
 
 /* Rows stretch to the full width rather than leaving a ragged right edge. */
-.btn-row { gap: 6px; }
+.btn-row { gap: 6px; margin-bottom: 4px; }
 .btn-row > .btn { flex: 1 1 auto; justify-content: center; }
 .btn-row > .btn.sm:only-child { flex: 0 0 auto; }
 
@@ -1362,10 +1362,11 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
 
 /* Read-only state. Flat tonal fill, no border, mono label - a lamp, not a
    button, and it should never look pressable. */
+/* A pill carries a word - "Offline", "2 faults" - so it stays in the text
+   face. Only the measurement inside a chip goes mono. */
 .pill, .chip {
   border: none;
   box-shadow: none;
-  font-family: var(--mono);
   font-size: 11px;
   font-weight: 500;
   padding: 4px 11px;

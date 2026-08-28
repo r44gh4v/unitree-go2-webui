@@ -261,9 +261,7 @@ export default function LidarPanel() {
   return (
     <div className="section lidar-section">
       <p className="eyebrow">Lidar map</p>
-      <p className="note">
-        Uses real bandwidth, so it stays off until asked.
-      </p>
+      <p className="note">Uses real bandwidth, so it stays off until asked</p>
 
       <button
         className={`btn block${streaming ? ' on' : ''}`}

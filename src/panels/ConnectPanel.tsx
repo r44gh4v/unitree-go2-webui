@@ -40,10 +40,10 @@ const SERVICE_NOTE: Record<string, string> = {
  */
 const METHODS: { value: ConnectMethod; label: string; blurb: string }[] = [
   { value: 'ip', label: 'IP', blurb: 'You know the robot address. Type it in.' },
-  { value: 'serial', label: 'Serial', blurb: 'On this network, by serial number.' },
+  { value: 'serial', label: 'Serial', blurb: 'On this network, by serial number' },
   { value: 'ap', label: 'AP', blurb: "You joined the robot's own Wi-Fi. No router involved." },
   { value: 'lan', label: 'LAN', blurb: 'Same router as this machine. Found for you.' },
-  { value: 'cloud', label: 'Cloud', blurb: 'Through your Unitree account, from anywhere.' },
+  { value: 'cloud', label: 'Cloud', blurb: 'Through your Unitree account, from anywhere' },
 ]
 
 export default function ConnectPanel() {
@@ -520,7 +520,7 @@ export default function ConnectPanel() {
       <div className="section">
         <p className="eyebrow">Motion service</p>
         {!connected ? (
-          <p className="note">Reported once connected.</p>
+          <p className="note">Reported once connected</p>
         ) : (
           <>
             <div className="kv" style={{ marginBottom: 8 }}>
@@ -530,9 +530,7 @@ export default function ConnectPanel() {
 
             {reportedMode && reportedMode !== 'mcf' && (
               <>
-                <p className="note">
-                  Switching takes a few seconds; the robot stands still.
-                </p>
+                <p className="note">Switching takes a few seconds; the robot stands still</p>
                 <div className="btn-row">
                   {SWITCHABLE_MODES.map((m) => (
                     <button

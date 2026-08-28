@@ -94,7 +94,7 @@ export default function ConsolePanel() {
   return (
     <div className="section">
       <p className="eyebrow">Command catalogue</p>
-      <p className="note">Picking one fills the form below.</p>
+      <p className="note">Picking one fills the form below</p>
       <input
         className="input"
         title="Search every documented command; click a result to fill the form"
@@ -105,7 +105,7 @@ export default function ConsolePanel() {
       />
       {apiSearch.trim() && (
         <div style={{ maxHeight: 240, overflowY: 'auto', marginBottom: 10 }}>
-          {matchingApis.length === 0 && <p className="note">Nothing matches that.</p>}
+          {matchingApis.length === 0 && <p className="note">Nothing matches that</p>}
           {matchingApis.map((e) => (
             <button
               key={`${e.group}-${e.name}-${e.apiId}`}
@@ -130,7 +130,7 @@ export default function ConsolePanel() {
 
       <div className="divider" />
       <p className="eyebrow">Send a request</p>
-      <p className="note">Sent as-is.</p>
+      <p className="note">Sent as-is</p>
 
       <div className="field">
         <label htmlFor="topic">Topic</label>

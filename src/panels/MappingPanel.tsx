@@ -21,7 +21,7 @@ const GROUPS: CommandGroup[] = [
     note: 'Builds a map of the space. The robot has one map slot, so a new map replaces the old one.',
     items: [
       { cmd: 'mapping/start', label: 'Start mapping' },
-      { cmd: 'mapping/stop', label: 'Stop mapping', note: 'Does not assign a map id - set one below afterwards.' },
+      { cmd: 'mapping/stop', label: 'Stop mapping', note: 'Does not assign a map id - set one below afterwards' },
       { cmd: 'mapping/cancel', label: 'Cancel' },
       { cmd: 'mapping/get_status', label: 'Status' },
       { cmd: 'mapping/get_cloud_map', label: 'Fetch cloud map' },
@@ -42,7 +42,7 @@ const GROUPS: CommandGroup[] = [
           { name: 'y', value: 0 },
           { name: 'yaw', value: 0 },
         ],
-        note: 'Yaw is in radians, counter-clockwise from the map x axis.',
+        note: 'Yaw is in radians, counter-clockwise from the map x axis',
       },
     ],
   },
@@ -93,7 +93,7 @@ const GROUPS: CommandGroup[] = [
           { name: 'min', value: 20 },
           { name: 'max', value: 90 },
         ],
-        note: 'Zero and one hundred are rejected; stay inside 1 to 99.',
+        note: 'Zero and one hundred are rejected; stay inside 1 to 99',
       },
     ],
   },
@@ -216,7 +216,7 @@ export default function MappingPanel() {
   if (!connected) {
     return (
       <div className="section">
-        <p className="note">Mapping controls appear once the robot is connected.</p>
+        <p className="note">Mapping controls appear once the robot is connected</p>
       </div>
     )
   }

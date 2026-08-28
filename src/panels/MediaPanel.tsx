@@ -171,7 +171,7 @@ export default function MediaPanel() {
 
       {/* A swatch is the action: picking one sends it. The colour stays until
           another is picked or the light is handed back to the robot. */}
-      <p className="note">Picking a colour sends it.</p>
+      <p className="note">Picking a colour sends it</p>
       <div className="swatches">
         {VUI_COLORS.map((c) => (
           <button
@@ -292,7 +292,7 @@ export default function MediaPanel() {
           ))}
         </div>
       )}
-      {tracks && !hasTracks && <p className="note">No sounds stored on the robot.</p>}
+      {tracks && !hasTracks && <p className="note">No sounds stored on the robot</p>}
 
       <div className="divider" />
       <p className="eyebrow">Add a sound</p>
@@ -403,23 +403,6 @@ export default function MediaPanel() {
         )}
       </div>
 
-      <div className="divider" />
-      <p className="eyebrow">Built-in announcements</p>
-      <p className="note">Sound only - these do not switch the modes.</p>
-      <div className="btn-grid">
-        <button className="btn" disabled={!connected} title="Play the 'avoidance on' clip" onClick={() => audio(AUDIO_API.PLAY_START_OBSTACLE_AVOIDANCE, {}, 'Announcement')}>
-          Avoidance on
-        </button>
-        <button className="btn" disabled={!connected} title="Play the 'avoidance off' clip" onClick={() => audio(AUDIO_API.PLAY_EXIT_OBSTACLE_AVOIDANCE, {}, 'Announcement')}>
-          Avoidance off
-        </button>
-        <button className="btn" disabled={!connected} title="Play the 'follow on' clip" onClick={() => audio(AUDIO_API.PLAY_START_COMPANION_MODE, {}, 'Announcement')}>
-          Follow on
-        </button>
-        <button className="btn" disabled={!connected} title="Play the 'follow off' clip" onClick={() => audio(AUDIO_API.PLAY_EXIT_COMPANION_MODE, {}, 'Announcement')}>
-          Follow off
-        </button>
-      </div>
     </div>
   )
 }
