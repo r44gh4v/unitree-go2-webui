@@ -1508,3 +1508,45 @@ input[type="range"]:focus-visible { outline: 2px solid var(--text-strong); outli
    expected rather than surprising. */
 .btn.untested { border: 1px dashed var(--line-strong); }
 .btn.untested:hover:not(:disabled) { border-style: dashed; border-color: var(--text-strong); }
+
+/* ---------- corrections ---------- */
+
+/* Two buttons in a row share the width evenly. With flex-basis auto they were
+   sized by their labels, so Scan sat wider than Connect for no reason. */
+.btn-row > .btn { flex: 1 1 0; }
+
+/* A running tile grew a 3px ring, which read as the tile changing size. It
+   pulses its own surface instead, so nothing moves. */
+@keyframes action-pulse {
+  50% { background: var(--wash-strong); }
+}
+.btn.action.running { box-shadow: none; }
+
+/* A group heading and its description are one thought. */
+.eyebrow + .note { margin-top: -4px; margin-bottom: 6px; }
+.group-head { margin-bottom: 4px; }
+
+/* ---------- select ---------- */
+
+/* The browser's own select control ignored every token in here. This is the
+   same tonal pill the other inputs use, with a drawn chevron, so a dropdown
+   stops being the one native-looking thing on the surface. */
+select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% + 1px),
+    calc(100% - 13px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 34px;
+  cursor: pointer;
+}
+select.input:hover { background-color: var(--wash); }
+select.input:focus-visible { outline: 2px solid var(--text-strong); outline-offset: 1px; }
+/* The dropdown list itself is drawn by the OS; this is the most that can be
+   reached, and it keeps the open list from flashing white. */
+select.input option { background: var(--surface); color: var(--text); }

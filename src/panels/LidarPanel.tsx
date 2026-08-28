@@ -27,6 +27,7 @@ export default function LidarPanel() {
   const connected = connState === 'connected'
   const mountRef = useRef<HTMLDivElement>(null)
   const meshRef = useRef<THREE.Mesh | null>(null)
+  const robotRef = useRef<THREE.Mesh | null>(null)
   const renderRef = useRef<(() => void) | null>(null)
   const resetRef = useRef<(() => void) | null>(null)
   const topDownRef = useRef<(() => void) | null>(null)
@@ -102,11 +103,21 @@ export default function LidarPanel() {
     )
     robot.position.set(0, 0, 0.15)
     scene.add(robot)
+    robotRef.current = robot
 
     const geometry = new THREE.BufferGeometry()
     geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3))
     geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(0), 3))
-    const material = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })
+    const material = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })
+
+    // Without lighting every face carried the same flat colour whatever way
+    // it pointed, which is what made the map read as a cloud rather than as
+    // surfaces. A key light and a soft fill are enough to separate a wall
+    // from the floor.
+    scene.add(new THREE.AmbientLight(0xffffff, 1.5))
+    const key = new THREE.DirectionalLight(0xffffff, 1.6)
+    key.position.set(4, 6, 9)
+    scene.add(key)
     const voxelMesh = new THREE.Mesh(geometry, material)
     voxelMesh.frustumCulled = false
     scene.add(voxelMesh)
@@ -169,11 +180,33 @@ export default function LidarPanel() {
       renderer.dispose()
       mount.removeChild(renderer.domElement)
       meshRef.current = null
+      robotRef.current = null
       renderRef.current = null
       resetRef.current = null
       topDownRef.current = null
     }
   }, [])
+
+  // The map is built in the odometry frame, so the robot moves through it.
+  // Without this the marker stayed at the origin and only the walls slid
+  // past, which read as the map moving rather than the robot.
+  useEffect(() => {
+    if (!connected) return
+    return conn.subscribe(TOPICS.ROBOTODOM, (d) => {
+      const m = robotRef.current
+      if (!m) return
+      const pose = (d as { pose?: { position?: Record<string, number>; orientation?: Record<string, number> } })?.pose ?? d
+      const pos = (pose as { position?: Record<string, number> })?.position
+      const q = (pose as { orientation?: Record<string, number> })?.orientation
+      if (pos && typeof pos.x === 'number') {
+        m.position.set(pos.x, pos.y ?? 0, (pos.z ?? 0) + 0.15)
+      }
+      if (q && typeof q.w === 'number') {
+        m.quaternion.set(q.x ?? 0, q.y ?? 0, q.z ?? 0, q.w)
+      }
+      renderRef.current?.()
+    })
+  }, [connected, conn])
 
   // Lidar health, so a stream that never starts can say why.
   const lidarState = useRef<unknown>(null)

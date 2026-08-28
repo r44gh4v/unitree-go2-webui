@@ -10,12 +10,13 @@ const TRAILING_ZEROS = 4
  * Per-tick slew limits, as a fraction of full stick. A key goes from nothing to
  * fully pressed instantly, which asks the gait controller for a step change in
  * velocity that no physical stick could ever produce - the robot lurches
- * catching up. Ramping the demand is what makes keyboard driving feel like the
- * handheld remote. Release is quicker than push so letting go still stops
- * promptly.
+ * catching up. A little smoothing takes the edge off that, but at 0.15 it also
+ * cost 300ms before the robot moved at all, which felt like lag. At 0.5 the
+ * stick reaches full travel in two ticks - 100ms - and release is instant,
+ * because letting go must never trail the key.
  */
-const RAMP_UP = 0.15
-const RAMP_DOWN = 0.35
+const RAMP_UP = 0.5
+const RAMP_DOWN = 1
 
 /** Below this a command is treated as rest. */
 const EPSILON = 0.004

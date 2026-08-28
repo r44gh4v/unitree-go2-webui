@@ -105,7 +105,7 @@ export default function DrivePanel() {
    * refusing locally - and let the robot's own "API not registered" answer be
    * the thing the operator sees if it really is absent.
    */
-  const stanceId = (key: 'BodyHeight' | 'FootRaiseHeight' | 'SpeedLevel'): number =>
+  const stanceId = (key: 'SpeedLevel'): number =>
     (ids as Record<string, number | undefined>)[key] ?? SPORT_CMD[key]
 
   // Stance changes are worth reporting in the panel itself: a refused body
@@ -218,28 +218,6 @@ export default function DrivePanel() {
           Sent when you let go.{!stanceRead && connected && ' Reading the robot…'}
         </p>
         <div className="slider-row">
-          <label htmlFor="bh">Height</label>
-          <input
-            id="bh" type="range" min={-0.18} max={0.03} step={0.01} value={bodyHeight} disabled={!connected}
-            title="Stand taller or lower than default"
-            onChange={(e) => setBodyHeight(Number(e.target.value))}
-            onPointerUp={() => stance(stanceId('BodyHeight'), { data: bodyHeight }, 'Height', () => setBodyHeight(0))}
-            onKeyUp={() => stance(stanceId('BodyHeight'), { data: bodyHeight }, 'Height', () => setBodyHeight(0))}
-          />
-          <span className="val">{bodyHeight === 0 ? 'default' : `${bodyHeight > 0 ? '+' : ''}${(bodyHeight * 100).toFixed(0)} cm`}</span>
-        </div>
-        <div className="slider-row">
-          <label htmlFor="fh">Step</label>
-          <input
-            id="fh" type="range" min={-0.06} max={0.03} step={0.01} value={footHeight} disabled={!connected}
-            title="How high the feet lift on each step - raise it for rough ground"
-            onChange={(e) => setFootHeight(Number(e.target.value))}
-            onPointerUp={() => stance(stanceId('FootRaiseHeight'), { data: footHeight }, 'Step', () => setFootHeight(0))}
-            onKeyUp={() => stance(stanceId('FootRaiseHeight'), { data: footHeight }, 'Step', () => setFootHeight(0))}
-          />
-          <span className="val">{footHeight === 0 ? 'default' : `${footHeight > 0 ? '+' : ''}${(footHeight * 100).toFixed(0)} cm`}</span>
-        </div>
-        <div className="slider-row">
           <label htmlFor="sl">Pace</label>
           <input
             id="sl" type="range" min={-1} max={1} step={1} value={speedLevel} disabled={!connected}
@@ -258,17 +236,13 @@ export default function DrivePanel() {
         <button
           className="btn sm ghost block"
           disabled={!connected}
-          title="Put height, step and pace back to the robot's defaults"
+          title="Put the pace back to the robot's default"
           onClick={() => {
-            setBodyHeight(0)
-            setFootHeight(0)
             setSpeedLevel(0)
-            stance(stanceId('BodyHeight'), { data: 0 }, 'Height', () => undefined)
-            stance(stanceId('FootRaiseHeight'), { data: 0 }, 'Step', () => undefined)
             stance(stanceId('SpeedLevel'), { data: 0 }, 'Pace', () => undefined)
           }}
         >
-          Reset stance
+          Reset pace
         </button>
       </div>
 

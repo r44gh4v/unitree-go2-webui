@@ -124,61 +124,12 @@ function Rail() {
   )
 }
 
-interface Toast {
-  id: number
-  source: string
-  text: string
-}
-
-/**
- * Surfaces a robot fault the moment it arrives, whatever tab is open, so a motor
- * error or an overheat is not missed while looking at the camera. Faults are
- * still listed in full on the Status tab; these are the transient heads-up.
- */
-function FaultToasts() {
-  const { robotErrors } = useRobot()
-  const [toasts, setToasts] = useState<Toast[]>([])
-  const seen = useRef(new Set<string>())
-  const nextId = useRef(0)
-
-  useEffect(() => {
-    const fresh: Toast[] = []
-    for (const e of robotErrors) {
-      if (e.cleared) continue
-      const key = `${e.ts}:${e.source}:${e.text}`
-      if (seen.current.has(key)) continue
-      seen.current.add(key)
-      fresh.push({ id: nextId.current++, source: e.source, text: e.text })
-    }
-    if (!fresh.length) return
-    setToasts((prev) => [...fresh, ...prev].slice(0, 3))
-    const timers = fresh.map((t) => setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== t.id)), 6000))
-    return () => timers.forEach(clearTimeout)
-  }, [robotErrors])
-
-  if (!toasts.length) return null
-  return (
-    <div className="toasts">
-      {toasts.map((t) => (
-        <div key={t.id} className="toast" role="alert">
-          <span className="toast-src">{t.source}</span>
-          <span className="toast-text">{t.text}</span>
-          <button className="toast-x" onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))} aria-label="Dismiss">
-            ×
-          </button>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 function Workspace() {
   const [tab, setTab] = useState<(typeof TABS)[number]['key']>('actions')
   const Active = TABS.find((t) => t.key === tab)!.Panel
 
   return (
     <div className="app">
-      <FaultToasts />
       <Rail />
       <div className="main">
         <Split direction="vertical" initial={300} min={240} max={480} storageKey="go2.split.left">

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRobot } from '../state/RobotContext'
 import { MODE_NAMES } from '../lib/types'
 import {
-  CameraIcon, CameraOffIcon, MicIcon, MicOffIcon, SpeakerIcon, SpeakerOffIcon,
+  CameraIcon, CameraOffIcon, SpeakerIcon, SpeakerOffIcon,
   PhotoIcon, FrameIcon, ExpandIcon,
 } from './Icons'
 
@@ -145,18 +145,21 @@ export default function CameraPanel() {
           {videoOn ? <CameraIcon size={15} /> : <CameraOffIcon size={15} />}
           Camera
         </button>
-        <button className={`btn sm${audioOn ? ' on' : ''}`} disabled={!connected} {...{ title: audioOn ? 'Stop listening to the robot' : 'Listen through the robot microphone' }} onClick={() => setAudio(!audioOn)}>
-          {audioOn ? <MicIcon size={15} /> : <MicOffIcon size={15} />}
-          Mic
-        </button>
+        {/* Listening used to be two controls that were never useful apart: one
+            asked the robot to send its microphone, the other unmuted it here,
+            and either alone is silence. They are one switch. */}
         <button
-          className={`btn sm${!muted ? ' on' : ''}`}
-          disabled={!audioOn}
-          {...{ title: muted ? 'Play the robot audio here' : 'Silence it here; the robot keeps sending' }}
-          onClick={() => setMuted((m) => !m)}
+          className={`btn sm${audioOn && !muted ? ' on' : ''}`}
+          disabled={!connected}
+          {...{ title: audioOn && !muted ? 'Stop listening to the robot' : 'Hear what the robot hears' }}
+          onClick={() => {
+            const on = !(audioOn && !muted)
+            setAudio(on)
+            setMuted(!on)
+          }}
         >
-          {muted ? <SpeakerOffIcon size={15} /> : <SpeakerIcon size={15} />}
-          Sound
+          {audioOn && !muted ? <SpeakerIcon size={15} /> : <SpeakerOffIcon size={15} />}
+          Listen
         </button>
 
         <div style={{ flex: 1 }} />

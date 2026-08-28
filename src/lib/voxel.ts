@@ -134,21 +134,24 @@ const FACES: { d: [number, number, number]; c: [number, number, number][] }[] = 
   { d: [0, 0, 1], c: [[0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1]] },
 ]
 
-/** Crimson at the floor, salmon at mid, cream at the ceiling. */
+/** Deep crimson at the floor, red at mid, amber at the ceiling. The ramp used
+ * to finish at cream, which is the interface background - so everything high
+ * up faded into the page and the map read as a haze. Every stop is now clearly
+ * darker than the ground it is drawn on. */
 function heightColor(t: number, out: Float32Array, at: number) {
   // clamp
   const u = t < 0 ? 0 : t > 1 ? 1 : t
   let r: number, g: number, b: number
   if (u < 0.5) {
-    const k = u * 2 // crimson #9e122c -> salmon #f99d90
-    r = (0x9e + (0xf9 - 0x9e) * k) / 255
-    g = (0x12 + (0x9d - 0x12) * k) / 255
-    b = (0x2c + (0x90 - 0x2c) * k) / 255
+    const k = u * 2 // deep crimson #6d0c1c -> red #c2413a
+    r = (0x6d + (0xc2 - 0x6d) * k) / 255
+    g = (0x0c + (0x41 - 0x0c) * k) / 255
+    b = (0x1c + (0x3a - 0x1c) * k) / 255
   } else {
-    const k = (u - 0.5) * 2 // salmon -> cream #fcecdf
-    r = (0xf9 + (0xfc - 0xf9) * k) / 255
-    g = (0x9d + (0xec - 0x9d) * k) / 255
-    b = (0x90 + (0xdf - 0x90) * k) / 255
+    const k = (u - 0.5) * 2 // red -> amber #d98a2b
+    r = (0xc2 + (0xd9 - 0xc2) * k) / 255
+    g = (0x41 + (0x8a - 0x41) * k) / 255
+    b = (0x3a + (0x2b - 0x3a) * k) / 255
   }
   out[at] = r
   out[at + 1] = g

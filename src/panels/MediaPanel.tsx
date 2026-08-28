@@ -35,6 +35,7 @@ export default function MediaPanel() {
   const fileRef = useRef<HTMLInputElement>(null)
   const megaphoneFileRef = useRef<HTMLInputElement>(null)
   const mic = useMicRecorder()
+  const [talking, setTalking] = useState(false)
 
   const vui = (apiId: number, parameter?: unknown, label = 'VUI') =>
     conn.request(TOPICS.VUI, apiId, parameter).catch((e) => log(`${label}: ${(e as Error).message}`))
@@ -107,10 +108,20 @@ export default function MediaPanel() {
     })
   }, [connected, conn])
 
-  /** Off is brightness zero: this robot has no separate lamp switch. */
+  /**
+   * There is no lamp switch on this robot, so off is brightness zero. Off also
+   * hands the colour back to the firmware, which is what the separate Release
+   * button used to do - switching a light off should not leave the console
+   * still holding its colour.
+   */
   const toggleLight = (on: boolean) => {
     setLightOn(on)
-    void vui(VUI_API.SET_BRIGHTNESS, { brightness: on ? brightness || DEFAULT_BRIGHTNESS : 0 }, 'Head light')
+    if (on) {
+      void vui(VUI_API.SET_BRIGHTNESS, { brightness: brightness || DEFAULT_BRIGHTNESS }, 'Head light')
+    } else {
+      void vui(VUI_API.SET_BRIGHTNESS, { brightness: 0 }, 'Head light')
+      void vui(VUI_API.RELEASE_COLOR, {}, 'Head light')
+    }
   }
 
   const doUpload = async (file: File, asMegaphone: boolean) => {
@@ -132,6 +143,46 @@ export default function MediaPanel() {
       setUpload(`Upload failed: ${(e as Error).message}`)
     }
   }
+
+  /**
+   * Hold to talk. The WebRTC audio channel is opened receive-only - the robot
+   * sends us its microphone and there is no uplink - so speech reaches the
+   * speaker as a finished WAV through the megaphone api rather than as a live
+   * stream. It is a walkie-talkie, not a call: a phrase is heard after the
+   * button is let go, not while it is held. Same cycle unitree_ui uses: enter
+   * megaphone, record, upload, leave megaphone.
+   */
+  const talkStart = async () => {
+    if (talking) return
+    setTalking(true)
+    await audio(AUDIO_API.ENTER_MEGAPHONE, {}, 'Talk')
+    await mic.start()
+  }
+
+  const talkEnd = () => {
+    if (!talking) return
+    setTalking(false)
+    mic.stop()
+  }
+
+  // The clip only exists once the recorder has stopped, so the send happens
+  // here rather than in talkEnd, which would race the recorder's own onstop.
+  useEffect(() => {
+    if (talking || !mic.clip) return
+    const clip = mic.clip
+    void (async () => {
+      try {
+        const wav = await toRobotWav(clip)
+        await uploadMegaphone(conn, wav)
+      } catch (e) {
+        setUpload(`Talk failed: ${(e as Error).message}`)
+      } finally {
+        await audio(AUDIO_API.EXIT_MEGAPHONE, {}, 'Talk')
+        mic.discard()
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mic.clip, talking])
 
   const hasTracks = !!tracks?.length
 
@@ -191,14 +242,6 @@ export default function MediaPanel() {
             }}
           />
         ))}
-        <button
-          className="btn sm ghost"
-          disabled={!connected}
-          title="Hand the light back to the robot's own control"
-          onClick={() => void vui(VUI_API.RELEASE_COLOR, {}, 'Light')}
-        >
-          Release
-        </button>
       </div>
 
       <label className={`toggle${flash ? ' on' : ''}`} style={{ marginBottom: 10 }} title="Blink the colour instead of holding it steady - applies to the next colour you pick">
@@ -353,6 +396,24 @@ export default function MediaPanel() {
       )}
       {mic.error && <p className="note warn">{mic.error}</p>}
       {upload && <p className="note">{upload}</p>}
+
+      <div className="divider" />
+      <p className="eyebrow">Talk through the robot</p>
+      <p className="note">
+        Hold to speak. The robot has no audio uplink, so your voice goes out when you let go rather than as you talk.
+      </p>
+      <button
+        className={`btn block${talking ? ' on' : ''}`}
+        disabled={!connected}
+        title="Hold to record, release to play it through the robot"
+        onPointerDown={() => void talkStart()}
+        onPointerUp={talkEnd}
+        onPointerLeave={talkEnd}
+        onPointerCancel={talkEnd}
+      >
+        <MicIcon size={15} />
+        {talking ? `Speaking - ${mic.seconds.toFixed(1)}s` : 'Hold to talk'}
+      </button>
 
       <div className="divider" />
       <p className="eyebrow">Megaphone</p>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useRobot } from '../state/RobotContext'
-import { SWITCHABLE_MODES, type MotionMode } from '../lib/constants'
+import { SWITCHABLE_MODES } from '../lib/constants'
 import type { CloudRobot, ConnectMethod, DiscoveredRobot } from '../lib/types'
 import { lastServerInfo, probeServer } from '../lib/serverInfo'
 import { ScanIcon } from '../components/Icons'
@@ -38,17 +38,17 @@ const SERVICE_NOTE: Record<string, string> = {
  * the one that does not care where either of you is.
  */
 const METHODS: { value: ConnectMethod; label: string; blurb: string }[] = [
-  { value: 'ip', label: 'IP', blurb: 'You know the robot address. Type it in.' },
+  { value: 'ip', label: 'IP', blurb: 'You know the robot address. Type it in' },
   { value: 'serial', label: 'Serial', blurb: 'On this network, by serial number' },
-  { value: 'ap', label: 'AP', blurb: "You joined the robot's own Wi-Fi. No router involved." },
-  { value: 'lan', label: 'LAN', blurb: 'Same router as this machine. Found for you.' },
+  { value: 'ap', label: 'AP', blurb: "Join the robot's own Wi-Fi. No router involved" },
+  { value: 'lan', label: 'LAN', blurb: 'Same router as this machine. Found for you' },
   { value: 'cloud', label: 'Cloud', blurb: 'Through your Unitree account, from anywhere' },
 ]
 
 export default function ConnectPanel() {
   const {
     connState, connError, connect, disconnect, retry,
-    reportedMode, motionMode, setMotionMode, refreshMotionMode, switchMotionMode, log,
+    reportedMode, refreshMotionMode, switchMotionMode, log,
   } = useRobot()
 
   // A cloud deployment has no network of its own, so every method that reaches
@@ -347,15 +347,15 @@ export default function ConnectPanel() {
               </div>
             )}
 
-            {method === 'ap' && (
+            {/* {method === 'ap' && (
               <p className="note">
-                Join the Wi-Fi named after the robot's serial. This machine loses internet.
+                Join the Wi-Fi named after the robot's serial. This machine loses internet
               </p>
-            )}
+            )} */}
 
             {method === 'lan' && (
               <p className="note">
-                Finds the first robot on this router. Nothing to type.
+                Finds the first robot on this router
               </p>
             )}
 
@@ -522,34 +522,6 @@ export default function ConnectPanel() {
                 One service runs everything. Nothing to switch.
               </p>
             )}
-
-            {/* Which id table this console sends, not which service the robot
-                runs. There is no api that turns MCF on or off - it is simply
-                what firmware 1.1.7 and newer run - so this only exists for the
-                case where the robot's own report does not match its behaviour. */}
-            <label
-              className={`toggle${motionMode === 'mcf' ? ' on' : ''}`}
-              style={{ marginTop: 10 }}
-              title="Send the unified 1.1.7+ command ids instead of the legacy ones. Changes nothing on the robot."
-            >
-              <span className="toggle-label">Use MCF command set</span>
-              <input
-                type="checkbox"
-                checked={motionMode === 'mcf'}
-                onChange={(e) =>
-                  setMotionMode(
-                    e.target.checked
-                      ? 'mcf'
-                      : ((reportedMode && reportedMode !== 'mcf' ? reportedMode : 'normal') as MotionMode),
-                  )
-                }
-                style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
-              />
-              <span className="track" />
-            </label>
-            <p className="note">
-              Which ids this console sends. Changes nothing on the robot.
-            </p>
 
             <button
               className="btn sm ghost"
