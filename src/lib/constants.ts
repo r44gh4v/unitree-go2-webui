@@ -325,9 +325,15 @@ export const ACTION_GROUPS: { key: ActionSpec['group']; label: string; note: str
   { key: 'assist', label: 'Follow and avoid', note: 'The robot steers itself' },
 ]
 
-/** Sport calls that read a value back rather than moving the robot. */
+/**
+ * Sport calls that read a value back rather than moving the robot.
+ *
+ * Pace is not among them. Neither the phone app nor the handheld remote has a
+ * speed level - there is normal walking and there is Sprint - so offering to
+ * read one back invites the operator to look for a setting the robot does not
+ * really present.
+ */
 export const SPORT_QUERIES = [
-  { label: 'Pace setting', apiId: SPORT_CMD.GetSpeedLevel },
   { label: 'Full state', apiId: SPORT_CMD.GetState, parameter: ['state', 'bodyHeight', 'speedLevel', 'gait', 'continuousGait', 'economicGait'] },
 ]
 
