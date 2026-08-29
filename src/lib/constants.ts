@@ -271,10 +271,10 @@ export interface ActionSpec {
 
 export const ACTIONS: ActionSpec[] = [
   // stand and rest
+  { name: 'RecoveryStand', label: 'Stand up', ids: { normal: 1006, ai: 1006, mcf: 1006 }, group: 'posture', note: 'Gets up from lying down or from a fall, ready to walk' },
   { name: 'StandDown', label: 'Lie down', ids: { normal: 1005, ai: 1005, mcf: 1005 }, group: 'posture', note: 'Folds down and rests on the ground' },
   { name: 'Sit', label: 'Sit', ids: { normal: 1009, mcf: 1009 }, group: 'posture', note: 'Sits back on the hindquarters' },
   { name: 'RiseSit', label: 'Rise', ids: { normal: 1010, mcf: 1010 }, group: 'posture', note: 'Gets up out of a sit' },
-  { name: 'RecoveryStand', label: 'Stand up', ids: { normal: 1006, ai: 1006, mcf: 1006 }, group: 'posture', note: 'Gets up from lying down or from a fall, ready to walk' },
   { name: 'Damp', label: 'Go limp', ids: { normal: 1001, ai: 1001, mcf: 1001 }, group: 'posture', note: 'Motors go slack and the robot settles to the floor' },
   { name: 'StopMove', label: 'Stand still', ids: { normal: 1003, ai: 1003, mcf: 1003 }, group: 'posture', note: 'Halts locomotion. Also leaves pose mode and most gaits.' },
 
