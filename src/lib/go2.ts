@@ -299,7 +299,10 @@ export class Go2Connection extends EventTarget {
       }
     }
 
-    const dc = pc.createDataChannel('data')
+    // Ordered and reliable are the spec defaults, but they are stated here
+    // because the protocol leans on them: the lidar switch is level-based,
+    // so a reordered ON after an OFF would leave the sensor turning.
+    const dc = pc.createDataChannel('data', { ordered: true })
     this.dc = dc
     dc.binaryType = 'arraybuffer'
     dc.onopen = () => {

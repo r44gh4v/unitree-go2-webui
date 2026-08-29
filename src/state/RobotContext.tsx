@@ -43,6 +43,10 @@ export interface RobotApi {
    * tab someone happens to be looking at.
    */
   lidarOn: boolean
+  /** The robot kept the lidar running after being told to stop. */
+  lidarStuck: boolean
+  /** Say it again, for a lidar that ignored the last off. */
+  retryLidar: () => void
   motionMode: MotionMode
   reportedMode: string | null
   linkStats: { messages: number; bytes: number; topics: number; rate: number }
@@ -190,6 +194,13 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     }
   }, [conn])
 
+  const log = useCallback(
+    (text: string) => {
+      pendingTraffic.current.push({ dir: 'sys', text, ts: Date.now() })
+    },
+    [],
+  )
+
   /**
    * The lidar switch is driven from here rather than from the lidar panel,
    * because the panel only exists while its tab is open. The switch lives on
@@ -198,29 +209,79 @@ export function RobotProvider({ children }: { children: ReactNode }) {
    * mounted.
    *
    * The payload is upper case and repeated: the firmware routinely drops one
-   * of these, and a dropped OFF leaves the sensor turning.
+   * of these, and a dropped OFF leaves the sensor turning. On a LAN link the
+   * repeats are enough. Over the cloud relay they are not, which is why off
+   * is verified below rather than assumed.
    */
+  /** Set when the robot keeps the lidar running after being told to stop. */
+  const [lidarStuck, setLidarStuck] = useState(false)
+  // Bumping this re-runs the send below without changing what the operator
+  // asked for, so a retry does not have to flick the lidar back on first.
+  const [lidarNudge, setLidarNudge] = useState(0)
+  const retryLidar = useCallback(() => setLidarNudge((n) => n + 1), [])
+
   useEffect(() => {
     if (connState !== 'connected') return
     let cancelled = false
+    // Five fast repeats is what the firmware wants (it drops one routinely),
+    // but on the cloud relay a fast burst can be overtaken by an earlier
+    // in-flight ON, and the last packet to land is the one that wins. The two
+    // late repeats put the intent beyond any burst still in the air.
+    const AT = [0, 100, 200, 300, 400, 1200, 2500]
     const send = (state: 'ON' | 'OFF') => {
-      for (let i = 0; i < 5; i++) {
+      for (const ms of AT) {
         setTimeout(() => {
           if (!cancelled) conn.publish(TOPICS.ULIDAR_SWITCH, state)
-        }, i * 100)
+        }, ms)
       }
     }
+
     if (lidarOn) {
       // Voxel frames are large, so they need the full-rate channel.
       conn.disableTrafficSaving(true).catch(() => undefined)
+      setLidarStuck(false)
       send('ON')
-    } else {
-      send('OFF')
+      return () => {
+        cancelled = true
+      }
     }
+
+    /**
+     * Off is not fire-and-forget. A voxel frame can only exist while the
+     * sensor is turning, so any frame arriving after this point means
+     * something put the lidar back - a lost packet on the relay, or a service
+     * on the robot that wants it. Say off again, a few times, and if it still
+     * will not stop, stop lying about it in the UI.
+     */
+    const REASSERT_GAP = 2000
+    const MAX_REASSERTS = 4
+    let attempts = 0
+    let lastAt = Date.now()
+    let unsub = () => {}
+    setLidarStuck(false)
+    send('OFF')
+
+    unsub = conn.subscribe(TOPICS.ULIDAR_ARRAY, () => {
+      if (cancelled) return
+      const now = Date.now()
+      if (now - lastAt < REASSERT_GAP) return
+      lastAt = now
+      attempts += 1
+      if (attempts > MAX_REASSERTS) {
+        setLidarStuck(true)
+        log('Lidar is still running after repeated off commands - something on the robot is holding it on')
+        unsub()
+        return
+      }
+      log(`Lidar is still sending - repeating off (${attempts}/${MAX_REASSERTS})`)
+      send('OFF')
+    })
+
     return () => {
       cancelled = true
+      unsub()
     }
-  }, [lidarOn, connState, conn])
+  }, [lidarOn, lidarNudge, connState, conn, log])
 
   /**
    * Follow the robot into and out of pose mode.
@@ -286,13 +347,6 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     }, UI_FLUSH_MS)
     return () => clearInterval(t)
   }, [conn])
-
-  const log = useCallback(
-    (text: string) => {
-      pendingTraffic.current.push({ dir: 'sys', text, ts: Date.now() })
-    },
-    [],
-  )
 
   const lastConnect = useRef<ConnectOptions | null>(null)
   const [canRetry, setCanRetry] = useState(false)
@@ -447,6 +501,8 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       audioOn,
       posing,
       lidarOn,
+      lidarStuck,
+      retryLidar,
       motionMode,
       reportedMode,
       linkStats,
@@ -472,7 +528,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       clearErrors,
       log,
     }),
-    [conn, connState, connError, ip, lowState, sportState, traffic, robotErrors, stream, videoOn, audioOn, posing, lidarOn, motionMode, reportedMode, linkStats, connect, canRetry, retry, disconnect, setVideo, setAudio, apiIdFor, sport, runAction, move, moveSticks, setEuler, setPosingManually, stopMove, emergencyStop, refreshMotionMode, switchMotionMode, clearTraffic, clearErrors, log],
+    [conn, connState, connError, ip, lowState, sportState, traffic, robotErrors, stream, videoOn, audioOn, posing, lidarOn, lidarStuck, retryLidar, motionMode, reportedMode, linkStats, connect, canRetry, retry, disconnect, setVideo, setAudio, apiIdFor, sport, runAction, move, moveSticks, setEuler, setPosingManually, stopMove, emergencyStop, refreshMotionMode, switchMotionMode, clearTraffic, clearErrors, log],
   )
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>

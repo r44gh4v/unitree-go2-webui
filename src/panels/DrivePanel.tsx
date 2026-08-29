@@ -8,7 +8,7 @@ import { ScanIcon, ShieldIcon } from '../components/Icons'
 
 /** Sticks, speed, and what the robot is allowed to sense. */
 export default function DrivePanel() {
-  const { connState, conn, posing, lidarOn, setLidarOn, log } = useRobot()
+  const { connState, conn, posing, lidarOn, setLidarOn, lidarStuck, retryLidar, log } = useRobot()
   const connected = connState === 'connected'
 
   const [avoidance, setAvoidance] = useState<boolean | null>(null)
@@ -41,6 +41,18 @@ export default function DrivePanel() {
     } catch (e) {
       log(`Obstacle avoidance: ${(e as Error).message}`)
     }
+  }
+
+  /**
+   * Obstacle avoidance is the lidar-based assist - unitree_ui calls its own
+   * version of this toggle "radar" for exactly that reason. Leaving it on
+   * while asking the lidar to stop puts a service on the robot in the
+   * position of needing a sensor the operator just switched off, so the two
+   * go off together rather than fighting each other.
+   */
+  const setLidar = (next: boolean) => {
+    if (!next && avoidance) void toggleAvoidance(false)
+    setLidarOn(next)
   }
 
   /**
@@ -178,17 +190,36 @@ export default function DrivePanel() {
         <label
           className={`toggle${lidarOn ? ' on' : ''}`}
           style={{ marginTop: 8 }}
-          title={lidarOn ? 'Stop the lidar spinning' : 'Start the lidar. It spins while on, and feeds the Lidar tab'}
+          title={
+            lidarStuck
+              ? 'Told to stop, but the robot is still sending lidar frames'
+              : lidarOn
+                ? 'Stop the lidar spinning. Obstacle avoidance needs it, so that goes off too'
+                : 'Start the lidar. It spins while on, and feeds the Lidar tab'
+          }
         >
           <span className="toggle-label">
             <ScanIcon size={15} />
             Lidar
+            {lidarStuck && (
+              <button
+                className="btn sm ghost"
+                style={{ padding: '0 6px' }}
+                title="Send the off command again"
+                onClick={(e) => {
+                  e.preventDefault()
+                  retryLidar()
+                }}
+              >
+                still spinning - retry
+              </button>
+            )}
           </span>
           <input
             type="checkbox"
             checked={lidarOn}
             disabled={!connected}
-            onChange={(e) => setLidarOn(e.target.checked)}
+            onChange={(e) => setLidar(e.target.checked)}
             style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
           />
           <span className="track" />
