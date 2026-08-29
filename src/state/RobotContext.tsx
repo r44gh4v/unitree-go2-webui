@@ -12,6 +12,12 @@ import {
 } from '../lib/constants'
 import type { LowState, RobotError, SportModeState } from '../lib/types'
 
+/** sportmodestate.mode while the robot is holding a pose. */
+const MODE_POSE = 2
+
+/** How long a deliberate pose change is trusted before telemetry overrules it. */
+const POSE_SETTLE_MS = 1500
+
 const TRAFFIC_LIMIT = 500
 const UI_FLUSH_MS = 150
 
@@ -101,6 +107,18 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   const [videoOn, setVideoOnState] = useState(false)
   const [audioOn, setAudioOnState] = useState(false)
   const [posing, setPosing] = useState(false)
+  /**
+   * When the operator last changed pose deliberately. Telemetry is the
+   * authority on whether the robot is posing, but it lags the command by a
+   * flush or two, so a manual change is trusted briefly before the robot gets
+   * to overrule it. Without that grace the switch would flick back the
+   * instant it was pressed.
+   */
+  const poseChangedAt = useRef(0)
+  const setPosingManually = useCallback((v: boolean) => {
+    poseChangedAt.current = Date.now()
+    setPosing(v)
+  }, [])
   // The robot brings its lidar up with itself, so the switch starts on to
   // match. Starting off would have shown a stopped sensor that was in fact
   // spinning, until someone toggled it twice to sync the two up.
@@ -203,6 +221,23 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       cancelled = true
     }
   }, [lidarOn, connState, conn])
+
+  /**
+   * Follow the robot into and out of pose mode.
+   *
+   * Some actions leave the robot posing on their own - a jump forward does -
+   * and the console had no idea, because this flag was only ever set by the
+   * Pose tile. The sticks would keep sending walk commands at a robot that
+   * was leaning, and the tile would claim pose was off while it plainly was
+   * not. sportmodestate reports mode 2 for pose, so believe that instead.
+   */
+  useEffect(() => {
+    const mode = sportState?.mode
+    if (mode === undefined) return
+    if (Date.now() - poseChangedAt.current < POSE_SETTLE_MS) return
+    const robotIsPosing = mode === MODE_POSE
+    setPosing((was) => (was === robotIsPosing ? was : robotIsPosing))
+  }, [sportState?.mode])
 
   // Core telemetry stays subscribed for the life of the app.
   useEffect(() => {
@@ -415,7 +450,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       motionMode,
       reportedMode,
       linkStats,
-      setPosing,
+      setPosing: setPosingManually,
       setLidarOn,
       setMotionMode,
       connect,
@@ -437,7 +472,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       clearErrors,
       log,
     }),
-    [conn, connState, connError, ip, lowState, sportState, traffic, robotErrors, stream, videoOn, audioOn, posing, lidarOn, motionMode, reportedMode, linkStats, connect, canRetry, retry, disconnect, setVideo, setAudio, apiIdFor, sport, runAction, move, moveSticks, setEuler, stopMove, emergencyStop, refreshMotionMode, switchMotionMode, clearTraffic, clearErrors, log],
+    [conn, connState, connError, ip, lowState, sportState, traffic, robotErrors, stream, videoOn, audioOn, posing, lidarOn, motionMode, reportedMode, linkStats, connect, canRetry, retry, disconnect, setVideo, setAudio, apiIdFor, sport, runAction, move, moveSticks, setEuler, setPosingManually, stopMove, emergencyStop, refreshMotionMode, switchMotionMode, clearTraffic, clearErrors, log],
   )
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>
