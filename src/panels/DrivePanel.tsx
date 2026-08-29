@@ -45,16 +45,21 @@ export default function DrivePanel() {
 
   /**
    * Obstacle avoidance is the lidar-based assist - unitree_ui calls its own
-   * version of this toggle "radar" for exactly that reason. Leaving it on
-   * while asking the lidar to stop puts a service on the robot in the
-   * position of needing a sensor the operator just switched off, so the two
-   * go off together rather than fighting each other.
+   * version of this toggle "radar" for exactly that reason - and it is what
+   * was restarting the lidar a couple of seconds after every off. The assist
+   * notices its sensor has stopped and brings it back.
+   *
+   * The disable below looks redundant and is not. Measured on the robot: the
+   * state query (api 1002) answers {"enable":false} while the service is
+   * still holding the lidar up, so there is no reading of the avoidance
+   * state that can safely gate this. It goes out every time the lidar is
+   * switched off, and disabling an already-disabled assist costs nothing.
+   *
+   * Turning the lidar back on deliberately does not restore avoidance. The
+   * toggle shows what happened and the operator can turn it back on; putting
+   * an assist back without being asked is worse than leaving it visibly off.
    */
   const setLidar = (next: boolean) => {
-    // Sent whatever we believe the current state to be. The read at connect
-    // can fail, which leaves it unknown here while it is still very much on
-    // over on the robot - the one case where skipping this matters most.
-    // Disabling an already-disabled assist costs nothing.
     if (!next) void toggleAvoidance(false)
     setLidarOn(next)
   }
