@@ -221,28 +221,7 @@ export default function LidarPanel() {
     let cancelled = false
     let gotFrame = false
 
-    setStatus('Asking for full bandwidth…')
-
-    const start = async () => {
-      try {
-        await conn.disableTrafficSaving(true)
-      } catch {
-        // A refusal and a success look the same on this call - it resolves on
-        // any reply and reads no status code - so only silence is reportable.
-        log('The robot did not confirm full bandwidth; lidar frames may be slow.')
-      }
-      if (cancelled) return
-      setStatus('Switching the lidar on…')
-      // The firmware routinely drops the first switch packet, so send it a few
-      // times at a short spacing, and in upper case - legion1581/unitree_ui
-      // sends ON and OFF, and lower case is what left the sensor still turning.
-      for (let i = 0; i < 5 && !cancelled; i++) {
-        conn.publish(TOPICS.ULIDAR_SWITCH, 'ON')
-        await new Promise((r) => setTimeout(r, 100))
-      }
-      if (!cancelled) setStatus('Waiting for the first frame…')
-    }
-    void start()
+    setStatus('Waiting for the first frame…')
 
     const deadline = setTimeout(() => {
       if (cancelled || gotFrame) return
@@ -272,10 +251,8 @@ export default function LidarPanel() {
       cancelled = true
       clearTimeout(deadline)
       unsub()
-      // Same repetition on the way out: one OFF is routinely dropped, and a
-      // dropped OFF leaves the sensor spinning for no reason.
-      for (let i = 0; i < 5; i++) setTimeout(() => conn.publish(TOPICS.ULIDAR_SWITCH, 'OFF'), i * 100)
-      clearMapRef.current?.()
+      // The switch itself is the context's job: leaving this tab must not stop
+      // a lidar the operator deliberately left running.
       setStatus(null)
     }
   }, [lidarOn, connected, conn, log])

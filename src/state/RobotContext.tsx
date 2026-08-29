@@ -31,9 +31,10 @@ export interface RobotApi {
   /** while true the drive sticks lean the body instead of walking it */
   posing: boolean
   /**
-   * Whether the head lidar is running. This is the sensor itself, not the
-   * map view, so it lives here rather than in the lidar panel - stopping a
-   * spinning part should not require having that tab open.
+   * Whether the head lidar is running. The sensor itself, not the map view, so
+   * it lives here rather than in the lidar panel: the panel only exists while
+   * its tab is open, and stopping a spinning part should not depend on which
+   * tab someone happens to be looking at.
    */
   lidarOn: boolean
   motionMode: MotionMode
@@ -100,7 +101,10 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   const [videoOn, setVideoOnState] = useState(false)
   const [audioOn, setAudioOnState] = useState(false)
   const [posing, setPosing] = useState(false)
-  const [lidarOn, setLidarOn] = useState(false)
+  // The robot brings its lidar up with itself, so the switch starts on to
+  // match. Starting off would have shown a stopped sensor that was in fact
+  // spinning, until someone toggled it twice to sync the two up.
+  const [lidarOn, setLidarOn] = useState(true)
   const [motionMode, setMotionMode] = useState<MotionMode>('normal')
   const [reportedMode, setReportedMode] = useState<string | null>(null)
   const [linkStats, setLinkStats] = useState({ messages: 0, bytes: 0, topics: 0, rate: 0 })
@@ -131,7 +135,6 @@ export function RobotProvider({ children }: { children: ReactNode }) {
         setVideoOnState(false)
         setAudioOnState(false)
         setPosing(false)
-        setLidarOn(false)
       }
     }
     const onTraffic = (e: Event) => {
@@ -168,6 +171,38 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       conn.removeEventListener('robot-error', onRobotError)
     }
   }, [conn])
+
+  /**
+   * The lidar switch is driven from here rather than from the lidar panel,
+   * because the panel only exists while its tab is open. The switch lives on
+   * the drive column, so toggling it used to do nothing at all unless the
+   * Lidar tab happened to be showing - the code that publishes it was not
+   * mounted.
+   *
+   * The payload is upper case and repeated: the firmware routinely drops one
+   * of these, and a dropped OFF leaves the sensor turning.
+   */
+  useEffect(() => {
+    if (connState !== 'connected') return
+    let cancelled = false
+    const send = (state: 'ON' | 'OFF') => {
+      for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+          if (!cancelled) conn.publish(TOPICS.ULIDAR_SWITCH, state)
+        }, i * 100)
+      }
+    }
+    if (lidarOn) {
+      // Voxel frames are large, so they need the full-rate channel.
+      conn.disableTrafficSaving(true).catch(() => undefined)
+      send('ON')
+    } else {
+      send('OFF')
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [lidarOn, connState, conn])
 
   // Core telemetry stays subscribed for the life of the app.
   useEffect(() => {
