@@ -30,10 +30,17 @@ export interface RobotApi {
   audioOn: boolean
   /** while true the drive sticks lean the body instead of walking it */
   posing: boolean
+  /**
+   * Whether the head lidar is running. This is the sensor itself, not the
+   * map view, so it lives here rather than in the lidar panel - stopping a
+   * spinning part should not require having that tab open.
+   */
+  lidarOn: boolean
   motionMode: MotionMode
   reportedMode: string | null
   linkStats: { messages: number; bytes: number; topics: number; rate: number }
   setPosing: (v: boolean) => void
+  setLidarOn: (v: boolean) => void
   setMotionMode: (m: MotionMode) => void
   connect: (opts: ConnectOptions) => Promise<void>
   /** re-run the last connect attempt, or null if there hasn't been one */
@@ -93,6 +100,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   const [videoOn, setVideoOnState] = useState(false)
   const [audioOn, setAudioOnState] = useState(false)
   const [posing, setPosing] = useState(false)
+  const [lidarOn, setLidarOn] = useState(false)
   const [motionMode, setMotionMode] = useState<MotionMode>('normal')
   const [reportedMode, setReportedMode] = useState<string | null>(null)
   const [linkStats, setLinkStats] = useState({ messages: 0, bytes: 0, topics: 0, rate: 0 })
@@ -123,6 +131,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
         setVideoOnState(false)
         setAudioOnState(false)
         setPosing(false)
+        setLidarOn(false)
       }
     }
     const onTraffic = (e: Event) => {
@@ -367,10 +376,12 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       videoOn,
       audioOn,
       posing,
+      lidarOn,
       motionMode,
       reportedMode,
       linkStats,
       setPosing,
+      setLidarOn,
       setMotionMode,
       connect,
       retry: canRetry ? retry : null,
@@ -391,7 +402,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       clearErrors,
       log,
     }),
-    [conn, connState, connError, ip, lowState, sportState, traffic, robotErrors, stream, videoOn, audioOn, posing, motionMode, reportedMode, linkStats, connect, canRetry, retry, disconnect, setVideo, setAudio, apiIdFor, sport, runAction, move, moveSticks, setEuler, stopMove, emergencyStop, refreshMotionMode, switchMotionMode, clearTraffic, clearErrors, log],
+    [conn, connState, connError, ip, lowState, sportState, traffic, robotErrors, stream, videoOn, audioOn, posing, lidarOn, motionMode, reportedMode, linkStats, connect, canRetry, retry, disconnect, setVideo, setAudio, apiIdFor, sport, runAction, move, moveSticks, setEuler, stopMove, emergencyStop, refreshMotionMode, switchMotionMode, clearTraffic, clearErrors, log],
   )
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>

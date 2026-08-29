@@ -23,7 +23,7 @@ const START_VIEW = { radius: 6, theta: Math.PI / 4, phi: Math.PI / 3 }
  * surface, not a cloud of dots). Drag to orbit, scroll to zoom.
  */
 export default function LidarPanel() {
-  const { conn, connState, log } = useRobot()
+  const { conn, connState, lidarOn, log } = useRobot()
   const connected = connState === 'connected'
   const mountRef = useRef<HTMLDivElement>(null)
   const meshRef = useRef<THREE.Mesh | null>(null)
@@ -32,7 +32,6 @@ export default function LidarPanel() {
   const resetRef = useRef<(() => void) | null>(null)
   const topDownRef = useRef<(() => void) | null>(null)
   const clearMapRef = useRef<(() => void) | null>(null)
-  const [streaming, setStreaming] = useState(false)
   const [stats, setStats] = useState<{ faces: number; voxels: number; ts: number } | null>(null)
   const [status, setStatus] = useState<string | null>(null)
 
@@ -218,7 +217,7 @@ export default function LidarPanel() {
 
   // subscription lifecycle
   useEffect(() => {
-    if (!streaming || !connected) return
+    if (!lidarOn || !connected) return
     let cancelled = false
     let gotFrame = false
 
@@ -279,12 +278,7 @@ export default function LidarPanel() {
       clearMapRef.current?.()
       setStatus(null)
     }
-  }, [streaming, connected, conn, log])
-
-  // A dropped link leaves the switch on with nothing behind it.
-  useEffect(() => {
-    if (!connected) setStreaming(false)
-  }, [connected])
+  }, [lidarOn, connected, conn, log])
 
   const clearMap = useCallback(() => {
     const geom = meshRef.current?.geometry
@@ -301,22 +295,6 @@ export default function LidarPanel() {
     <div className="section lidar-section">
       <p className="eyebrow">Lidar map</p>
       <p className="note">Uses real bandwidth, so it stays off until asked</p>
-
-      {/* The sensor itself, not just the picture. Off stops it turning, which
-          is worth doing when the map is not being used: it is a spinning part
-          and it costs bandwidth and battery. */}
-      <label className={`toggle${streaming ? ' on' : ''}`} style={{ marginBottom: 10 }} title="Off stops the lidar spinning, not just the map">
-        <span className="toggle-label">Lidar running</span>
-        <input
-          type="checkbox"
-          checked={streaming}
-          disabled={!connected}
-          onChange={(e) => setStreaming(e.target.checked)}
-          style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
-        />
-        <span className="track" />
-      </label>
-
 
       <div className="btn-row" style={{ marginBottom: 10 }}>
         <button className="btn sm" title="Back to the starting angle" onClick={() => resetRef.current?.()}>

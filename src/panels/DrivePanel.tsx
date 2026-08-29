@@ -4,7 +4,7 @@ import { useRobot } from '../state/RobotContext'
 import { useDriveLoop } from '../hooks/useDriveLoop'
 import { OBSTACLES_AVOID_API, SPORT_CMD, SPORT_CMD_MCF, TOPICS } from '../lib/constants'
 import { unwrapResponse } from '../lib/go2'
-import { ShieldIcon } from '../components/Icons'
+import { ScanIcon, ShieldIcon } from '../components/Icons'
 
 /** Some state topics arrive as a JSON string inside the message rather than an object. */
 function decodeMaybeString<T>(value: unknown): T | null {
@@ -20,14 +20,12 @@ function decodeMaybeString<T>(value: unknown): T | null {
 }
 
 interface MultipleState {
-  bodyHeight?: number
-  footRaiseHeight?: number
   speedLevel?: number
 }
 
-/** Sticks, speed limits, stance, safety, and the simulated remote. */
+/** Sticks, speeds, and what the robot is allowed to sense. */
 export default function DrivePanel() {
-  const { connState, conn, sport, motionMode, posing, log } = useRobot()
+  const { connState, conn, sport, motionMode, posing, lidarOn, setLidarOn, log } = useRobot()
   const connected = connState === 'connected'
 
   // Commands go out as stick deflection now, not velocities, so these scale
@@ -36,12 +34,10 @@ export default function DrivePanel() {
   // change how fast it actually walks.
   const [linear, setLinear] = useState(1.0)
   const [angular, setAngular] = useState(1.0)
-  const [bodyHeight, setBodyHeight] = useState(0)
-  const [footHeight, setFootHeight] = useState(0)
   const [speedLevel, setSpeedLevel] = useState(0)
   const [avoidance, setAvoidance] = useState<boolean | null>(null)
   const [stanceError, setStanceError] = useState<string | null>(null)
-  /** Set once the robot has told us its real stance, so we stop overwriting the operator. */
+  /** Set once the robot has reported its pace, so we stop overwriting the operator. */
   const [stanceRead, setStanceRead] = useState(false)
 
   // Read the current obstacle-avoidance state; reused by the recheck link
@@ -73,8 +69,6 @@ export default function DrivePanel() {
     const unsub = conn.subscribe(TOPICS.MULTIPLE_STATE, (d) => {
       const m = decodeMaybeString<MultipleState>(d)
       if (!m) return
-      if (typeof m.bodyHeight === 'number') setBodyHeight(m.bodyHeight)
-      if (typeof m.footRaiseHeight === 'number') setFootHeight(m.footRaiseHeight)
       if (typeof m.speedLevel === 'number') setSpeedLevel(m.speedLevel)
       setStanceRead(true)
     })
@@ -154,15 +148,7 @@ export default function DrivePanel() {
           />
         </div>
 
-        {/* <p className="note" style={{ textAlign: 'center', minHeight: 18 }}>
-          {posing
-            ? 'Pose mode - the sticks lean the body. Turn it off in Actions to walk.'
-            : moving
-              ? `${(active.y * linear).toFixed(2)} fwd · ${(active.x * linear).toFixed(2)} side · ${(active.z * angular).toFixed(2)} turn`
-              : gamepadName
-                ? `Gamepad: ${gamepadName.slice(0, 22)}`
-                : 'Hold W A S D to walk, Q and E to turn.'}
-        </p> */}
+
 
         <div className="slider-row">
           <label htmlFor="lin">Walk</label>
@@ -174,6 +160,27 @@ export default function DrivePanel() {
           <input id="ang" type="range" min={0.2} max={1} step={0.05} value={angular} disabled={posing} title="How far a full input pushes the turn stick" onChange={(e) => setAngular(Number(e.target.value))} />
           <span className="val">{Math.round(angular * 100)}%</span>
         </div>
+
+        {/* Walk and Turn scale our own stick; Pace is the robot's gear and is
+            the only one of the three the robot itself holds. It is read back
+            from rt/multiplestate on connect, so it shows what is actually set
+            rather than needing to be applied again. */}
+        <div className="slider-row">
+          <label htmlFor="sl">Pace</label>
+          <input
+            id="sl" type="range" min={-1} max={1} step={1} value={speedLevel} disabled={!connected}
+            title="The robot's own gait pace. Set on the robot, and read back when you connect"
+            onChange={(e) => setSpeedLevel(Number(e.target.value))}
+            onPointerUp={() => stance(stanceId('SpeedLevel'), { data: speedLevel }, 'Pace', () => setSpeedLevel(0))}
+            onKeyUp={() => stance(stanceId('SpeedLevel'), { data: speedLevel }, 'Pace', () => setSpeedLevel(0))}
+          />
+          <span className="val">{speedLevel > 0 ? 'fast' : speedLevel < 0 ? 'slow' : 'normal'}</span>
+        </div>
+        {stanceError && (
+          <p className="note warn" role="alert">
+            {stanceError}
+          </p>
+        )}
 
         <label
           className={`toggle${avoidance ? ' on' : ''}`}
@@ -210,42 +217,30 @@ export default function DrivePanel() {
           />
           <span className="track" />
         </label>
-      </div>
 
-      <div className="section">
-        <p className="eyebrow">Stance</p>
-        <p className="note">
-          Sent when you let go.{!stanceRead && connected && ' Reading the robot…'}
-        </p>
-        <div className="slider-row">
-          <label htmlFor="sl">Pace</label>
-          <input
-            id="sl" type="range" min={-1} max={1} step={1} value={speedLevel} disabled={!connected}
-            title="The robot's own gait pace"
-            onChange={(e) => setSpeedLevel(Number(e.target.value))}
-            onPointerUp={() => stance(stanceId('SpeedLevel'), { data: speedLevel }, 'Pace', () => setSpeedLevel(0))}
-            onKeyUp={() => stance(stanceId('SpeedLevel'), { data: speedLevel }, 'Pace', () => setSpeedLevel(0))}
-          />
-          <span className="val">{speedLevel > 0 ? 'fast' : speedLevel < 0 ? 'slow' : 'normal'}</span>
-        </div>
-        {stanceError && (
-          <p className="note warn" role="alert">
-            {stanceError}
-          </p>
-        )}
-        <button
-          className="btn sm ghost block"
-          disabled={!connected}
-          title="Put the pace back to the robot's default"
-          onClick={() => {
-            setSpeedLevel(0)
-            stance(stanceId('SpeedLevel'), { data: 0 }, 'Pace', () => undefined)
-          }}
+        {/* The sensor itself, not the map view. Off stops it turning, which is
+            worth doing when the map is not in use - it is a moving part, and it
+            costs bandwidth and battery. It sits with obstacle avoidance because
+            both are about what the robot can sense. */}
+        <label
+          className={`toggle${lidarOn ? ' on' : ''}`}
+          style={{ marginTop: 8 }}
+          title="Off stops the lidar spinning, not just the map"
         >
-          Reset pace
-        </button>
+          <span className="toggle-label">
+            <ScanIcon size={15} />
+            Lidar
+          </span>
+          <input
+            type="checkbox"
+            checked={lidarOn}
+            disabled={!connected}
+            onChange={(e) => setLidarOn(e.target.checked)}
+            style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
+          />
+          <span className="track" />
+        </label>
       </div>
-
     </>
   )
 }
