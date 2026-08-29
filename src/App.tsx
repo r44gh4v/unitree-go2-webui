@@ -4,8 +4,6 @@ import { RobotProvider, useRobot } from './state/RobotContext'
 import Split from './components/Split'
 import CameraPanel from './components/CameraPanel'
 import { AlertIcon } from './components/Icons'
-import { MODE_NAMES } from './lib/types'
-import { GAITS } from './lib/constants'
 import ConnectPanel from './panels/ConnectPanel'
 import DrivePanel from './panels/DrivePanel'
 import StatusPanel from './panels/StatusPanel'
@@ -29,10 +27,6 @@ const TABS = [
   { key: 'console', label: 'Console', title: 'Send any command by hand and watch the wire', Panel: ConsolePanel },
 ] as const
 
-function num(v: unknown, digits = 2): string {
-  return typeof v === 'number' && Number.isFinite(v) ? v.toFixed(digits) : '-'
-}
-
 function Reading({ label, value, unit, tone }: { label: string; value: string; unit?: string; tone?: string }) {
   return (
     <div className={`reading${tone ? ` ${tone}` : ''}`}>
@@ -52,14 +46,9 @@ function Reading({ label, value, unit, tone }: { label: string; value: string; u
  * visible while the Status tab happened to be open.
  */
 function Rail() {
-  const { emergencyStop, connState, connError, ip, lowState, sportState, robotErrors, linkStats } = useRobot()
+  const { emergencyStop, connState, connError, ip, robotErrors, linkStats } = useRobot()
   const connected = connState === 'connected'
-  const soc = lowState?.bms_state?.soc
   const faults = robotErrors.filter((e) => !e.cleared).length
-  const vel = sportState?.velocity
-  const speed = vel ? Math.hypot(vel[0] ?? 0, vel[1] ?? 0) : null
-  const motors = Array.isArray(lowState?.motor_state) ? lowState!.motor_state! : []
-  const hottest = motors.reduce((m, x) => Math.max(m, typeof x.temperature === 'number' ? x.temperature : 0), 0)
 
   // Escape is the panic key and works even while typing.
   useEffect(() => {
@@ -102,21 +91,6 @@ function Rail() {
 
       <div className="rail-side rail-end">
         <div className="rail-readings">
-          <Reading
-            label="Battery"
-            value={typeof soc === 'number' ? String(soc) : '-'}
-            unit="%"
-            tone={typeof soc === 'number' ? (soc < 15 ? 'bad' : soc < 30 ? 'warn' : undefined) : undefined}
-          />
-          <Reading
-            label="Hottest"
-            value={hottest ? String(Math.round(hottest)) : '-'}
-            unit="°C"
-            tone={hottest > 80 ? 'bad' : hottest > 65 ? 'warn' : undefined}
-          />
-          <Reading label="Speed" value={num(speed)} unit="m/s" />
-          <Reading label="Posture" value={sportState?.mode !== undefined ? (MODE_NAMES[sportState.mode] ?? String(sportState.mode)) : '-'} />
-          <Reading label="Gait" value={GAITS.find((g) => g.value === sportState?.gait_type)?.label ?? '-'} />
           <Reading label="Data" value={connected ? String(linkStats.rate) : '-'} unit="/s" />
         </div>
       </div>

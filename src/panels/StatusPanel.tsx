@@ -29,7 +29,7 @@ function Stat({ label, value, unit, meter }: { label: string; value: string; uni
 }
 
 /**
- * The numbers an operator glances at while driving: charge, posture, speed,
+ * The numbers an operator glances at while driving: battery, posture, speed,
  * then the detail tables for when something looks wrong.
  */
 export default function StatusPanel() {
@@ -71,7 +71,7 @@ export default function StatusPanel() {
       <div className="section">
         <div className="stats">
           <Stat
-            label="Charge"
+            label="Battery"
             value={soc !== null ? String(soc) : '-'}
             unit="%"
             meter={soc !== null ? { pct: soc, tone: soc < 15 ? 'bad' : soc < 30 ? 'warn' : undefined } : undefined}
