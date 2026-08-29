@@ -189,9 +189,11 @@ export default function LidarPanel() {
 
   // The map is built in the odometry frame, so the robot moves through it.
   // Without this the marker stayed at the origin and only the walls slid
-  // past, which read as the map moving rather than the robot.
+  // past, which read as the map moving rather than the robot. Gated on the
+  // switch for the same reason as the health topic below: rt/utlidar/* is
+  // the sensor, and a stopped lidar has no odometry to publish anyway.
   useEffect(() => {
-    if (!connected) return
+    if (!connected || !lidarOn) return
     return conn.subscribe(TOPICS.ROBOTODOM, (d) => {
       const m = robotRef.current
       if (!m) return
@@ -206,14 +208,17 @@ export default function LidarPanel() {
       }
       renderRef.current?.()
     })
-  }, [connected, conn])
+  }, [connected, lidarOn, conn])
 
-  // Lidar health, so a stream that never starts can say why.
+  // Lidar health, so a stream that never starts can say why. Gated on the
+  // switch as well as the link: subscribing to a utlidar topic is a request
+  // for the sensor, and the console must not be asking for lidar data at the
+  // same moment it is asking the lidar to stop.
   const lidarState = useRef<unknown>(null)
   useEffect(() => {
-    if (!connected) return
+    if (!connected || !lidarOn) return
     return conn.subscribe(TOPICS.ULIDAR_STATE, (d) => (lidarState.current = d))
-  }, [connected, conn])
+  }, [connected, lidarOn, conn])
 
   // subscription lifecycle
   useEffect(() => {

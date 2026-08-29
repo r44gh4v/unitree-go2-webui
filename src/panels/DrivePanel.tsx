@@ -8,7 +8,7 @@ import { ScanIcon, ShieldIcon } from '../components/Icons'
 
 /** Sticks, speed, and what the robot is allowed to sense. */
 export default function DrivePanel() {
-  const { connState, conn, posing, lidarOn, setLidarOn, lidarStuck, retryLidar, log } = useRobot()
+  const { connState, conn, posing, lidarOn, setLidarOn, log } = useRobot()
   const connected = connState === 'connected'
 
   const [avoidance, setAvoidance] = useState<boolean | null>(null)
@@ -191,29 +191,14 @@ export default function DrivePanel() {
           className={`toggle${lidarOn ? ' on' : ''}`}
           style={{ marginTop: 8 }}
           title={
-            lidarStuck
-              ? 'Told to stop, but the robot is still sending lidar frames'
-              : lidarOn
-                ? 'Stop the lidar spinning. Obstacle avoidance needs it, so that goes off too'
-                : 'Start the lidar. It spins while on, and feeds the Lidar tab'
+            lidarOn
+              ? 'Stop the lidar spinning. Obstacle avoidance needs it, so that goes off too'
+              : 'Start the lidar. It spins while on, and feeds the Lidar tab'
           }
         >
           <span className="toggle-label">
             <ScanIcon size={15} />
             Lidar
-            {lidarStuck && (
-              <button
-                className="btn sm ghost"
-                style={{ padding: '0 6px' }}
-                title="Send the off command again"
-                onClick={(e) => {
-                  e.preventDefault()
-                  retryLidar()
-                }}
-              >
-                still spinning - retry
-              </button>
-            )}
           </span>
           <input
             type="checkbox"
