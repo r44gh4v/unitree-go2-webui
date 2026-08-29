@@ -21,7 +21,8 @@ export default function DrivePanel() {
       const a = unwrapResponse<{ enable: boolean }>(res)
       if (typeof a?.enable === 'boolean') setAvoidance(a.enable)
     } catch {
-      /* stays unknown; the toggle stays disabled and offers a recheck */
+      /* stays unknown, and the toggle stays usable - setting the state is
+         authoritative even when reading it back is not */
     }
   }, [conn])
 
@@ -44,24 +45,49 @@ export default function DrivePanel() {
   }
 
   /**
-   * Obstacle avoidance is the lidar-based assist - unitree_ui calls its own
-   * version of this toggle "radar" for exactly that reason - and it is what
-   * was restarting the lidar a couple of seconds after every off. The assist
-   * notices its sensor has stopped and brings it back.
+   * These two are a sensor and the thing that consumes it, not two
+   * independent switches, so they are driven as a pair:
    *
-   * The disable below looks redundant and is not. Measured on the robot: the
-   * state query (api 1002) answers {"enable":false} while the service is
-   * still holding the lidar up, so there is no reading of the avoidance
-   * state that can safely gate this. It goes out every time the lidar is
-   * switched off, and disabling an already-disabled assist costs nothing.
+   *   lidar off     -> avoidance goes off too, and goes first. Left running,
+   *                    the assist notices its sensor stopped and puts it back
+   *                    a couple of seconds later. Measured on the robot.
+   *   avoidance on  -> the lidar comes on. An assist with no sensor is not a
+   *                    thing the robot will honour: it starts the lidar
+   *                    itself, so the console turns it on where it is visible
+   *                    rather than showing a stopped lidar that is spinning.
    *
-   * Turning the lidar back on deliberately does not restore avoidance. The
-   * toggle shows what happened and the operator can turn it back on; putting
-   * an assist back without being asked is worse than leaving it visibly off.
+   * The state query (api 1002) cannot gate any of this. It answers
+   * {"enable":false} while the service is still holding the lidar up, so the
+   * disable goes out every time regardless of what we believe. Disabling an
+   * already-disabled assist costs nothing.
+   *
+   * Turning the lidar back on does not restore avoidance. The toggle shows
+   * that it went off and the operator can put it back; restoring an assist
+   * unasked is worse than leaving it visibly off.
    */
-  const setLidar = (next: boolean) => {
-    if (!next) void toggleAvoidance(false)
-    setLidarOn(next)
+  const [linking, setLinking] = useState(false)
+
+  const setLidar = async (next: boolean) => {
+    setLinking(true)
+    try {
+      if (!next) await toggleAvoidance(false)
+      setLidarOn(next)
+    } finally {
+      setLinking(false)
+    }
+  }
+
+  const setAvoid = async (next: boolean) => {
+    setLinking(true)
+    try {
+      if (next && !lidarOn) {
+        setLidarOn(true)
+        log('Obstacle avoidance needs the lidar - starting it')
+      }
+      await toggleAvoidance(next)
+    } finally {
+      setLinking(false)
+    }
   }
 
   /**
@@ -159,10 +185,12 @@ export default function DrivePanel() {
           style={{ marginTop: 8 }}
           title={
             avoidance === null
-              ? 'The robot has not reported this state yet'
+              ? 'The robot has not reported this state yet. You can still set it'
               : avoidance
                 ? 'On: the robot refuses drive commands that would hit something'
-                : 'Off: the robot will drive into things if you steer it into them'
+                : lidarOn
+                  ? 'Off: the robot will drive into things if you steer it into them'
+                  : 'Off. Turning it on starts the lidar, which it needs to see'
           }
         >
           <span className="toggle-label">
@@ -185,8 +213,8 @@ export default function DrivePanel() {
           <input
             type="checkbox"
             checked={!!avoidance}
-            disabled={!connected || avoidance === null}
-            onChange={(e) => void toggleAvoidance(e.target.checked)}
+            disabled={!connected || linking}
+            onChange={(e) => void setAvoid(e.target.checked)}
             style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
           />
           <span className="track" />
@@ -212,8 +240,8 @@ export default function DrivePanel() {
           <input
             type="checkbox"
             checked={lidarOn}
-            disabled={!connected}
-            onChange={(e) => setLidar(e.target.checked)}
+            disabled={!connected || linking}
+            onChange={(e) => void setLidar(e.target.checked)}
             style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
           />
           <span className="track" />
