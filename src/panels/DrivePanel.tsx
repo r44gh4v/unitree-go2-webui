@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Joystick from '../components/Joystick'
 import { useRobot } from '../state/RobotContext'
 import { useDriveLoop } from '../hooks/useDriveLoop'
@@ -23,22 +23,24 @@ interface MultipleState {
   speedLevel?: number
 }
 
-/** Sticks, speeds, and what the robot is allowed to sense. */
+const PACE_NAMES: Record<number, string> = { [-1]: 'slow', 0: 'normal', 1: 'fast' }
+
+/** Sticks, speed, and what the robot is allowed to sense. */
 export default function DrivePanel() {
   const { connState, conn, sport, motionMode, posing, lidarOn, setLidarOn, log } = useRobot()
   const connected = connState === 'connected'
 
-  // Commands go out as stick deflection now, not velocities, so these scale
-  // how far a full input pushes the stick. The robot keeps its own speed
-  // envelope, exactly as it does for the handheld remote; use Pace below to
-  // change how fast it actually walks.
-  const [linear, setLinear] = useState(1.0)
-  const [angular, setAngular] = useState(1.0)
   const [speedLevel, setSpeedLevel] = useState(0)
   const [avoidance, setAvoidance] = useState<boolean | null>(null)
-  const [stanceError, setStanceError] = useState<string | null>(null)
+  const [paceError, setPaceError] = useState<string | null>(null)
   /** Set once the robot has reported its pace, so we stop overwriting the operator. */
-  const [stanceRead, setStanceRead] = useState(false)
+  const [paceRead, setPaceRead] = useState(false)
+  /**
+   * The last pace the robot accepted. A refused change goes back to this rather
+   * than to zero - reverting to a value the operator never chose is its own
+   * small lie about what the robot is doing.
+   */
+  const lastPace = useRef(0)
 
   // Read the current obstacle-avoidance state; reused by the recheck link
   // when the first read fails and the state is unknown.
@@ -55,25 +57,25 @@ export default function DrivePanel() {
   useEffect(() => {
     if (!connected) {
       setAvoidance(null)
-      setStanceRead(false)
+      setPaceRead(false)
+      setPaceError(null)
       return
     }
     void readAvoidance()
   }, [connected, readAvoidance])
 
-  // The sliders used to start at zero and claim that was the robot's stance,
-  // which was a lie until someone moved them. The robot already reports the
-  // real values on rt/multiplestate, so take the first report and stop.
+  // Seed the pace from what the robot actually has set, so the slider shows the
+  // truth on connect rather than claiming normal and needing to be applied again.
   useEffect(() => {
-    if (!connected || stanceRead) return
-    const unsub = conn.subscribe(TOPICS.MULTIPLE_STATE, (d) => {
+    if (!connected || paceRead) return
+    return conn.subscribe(TOPICS.MULTIPLE_STATE, (d) => {
       const m = decodeMaybeString<MultipleState>(d)
-      if (!m) return
-      if (typeof m.speedLevel === 'number') setSpeedLevel(m.speedLevel)
-      setStanceRead(true)
+      if (typeof m?.speedLevel !== 'number') return
+      setSpeedLevel(m.speedLevel)
+      lastPace.current = m.speedLevel
+      setPaceRead(true)
     })
-    return unsub
-  }, [connected, conn, stanceRead])
+  }, [connected, conn, paceRead])
 
   const toggleAvoidance = async (next: boolean) => {
     try {
@@ -85,50 +87,47 @@ export default function DrivePanel() {
     }
   }
 
-  const { setStick, active, gamepadName } = useDriveLoop({ linear, angular }, connected)
+  /**
+   * How far a full input pushes each stick. These scale what goes on the wire,
+   * so they set walking and turning speed independently: at 100% the console
+   * sends exactly what the handheld remote and the phone app send at full
+   * stick, and lower values are slower.
+   *
+   * This is a different thing from Pace below, which is the robot's own gait
+   * gear and is held on the robot.
+   */
+  const [linear, setLinear] = useState(1)
+  const [angular, setAngular] = useState(1)
+
+  const { setStick, active } = useDriveLoop({ linear, angular }, connected)
 
   const onWalk = useCallback((x: number, y: number) => setStick({ x, y, z: 0 }), [setStick])
   const onTurn = useCallback((x: number) => setStick({ x: 0, y: 0, z: -x }), [setStick])
 
-  const ids = motionMode === 'mcf' ? SPORT_CMD_MCF : SPORT_CMD
-
-  /**
-   * Stance api id under the running motion service. The MCF table has no entry
-   * for body height or foot raise height, but every other low id is shared
-   * between the services, so fall back to the normal-mode id rather than
-   * refusing locally - and let the robot's own "API not registered" answer be
-   * the thing the operator sees if it really is absent.
-   */
-  const stanceId = (key: 'SpeedLevel'): number =>
-    (ids as Record<string, number | undefined>)[key] ?? SPORT_CMD[key]
-
-  // Stance changes are worth reporting in the panel itself: a refused body
-  // height used to vanish into the console with the slider left lying about it.
-  const stance = (apiId: number | undefined, parameter: unknown, label: string, revert: () => void) => {
-    if (apiId === undefined) {
-      setStanceError(`${label} is not available in ${motionMode} mode.`)
-      revert()
-      return
-    }
-    setStanceError(null)
-    sport(apiId, parameter).catch((e) => {
-      setStanceError(`${label}: ${(e as Error).message}`)
-      revert()
-    })
+  const sendPace = (next: number) => {
+    setSpeedLevel(next)
+    setPaceError(null)
+    const ids = motionMode === 'mcf' ? SPORT_CMD_MCF : SPORT_CMD
+    sport(ids.SpeedLevel, { data: next })
+      .then(() => {
+        lastPace.current = next
+        log(`Pace set to ${PACE_NAMES[next] ?? next}`)
+      })
+      .catch((e) => {
+        setPaceError(`Pace: ${(e as Error).message}`)
+        setSpeedLevel(lastPace.current)
+      })
   }
-
-  const moving = active.x !== 0 || active.y !== 0 || active.z !== 0
 
   return (
     <>
       <div className="section">
         <p className="eyebrow">Drive</p>
 
-        {/* The same two sticks lean the body while pose mode is on, so they say
-            so rather than claiming to walk the robot. */}
         {/* The dials show whatever is driving, not just the mouse: holding W
             walks the left nub up its dial and lights the W cap, so the keyboard
-            and a gamepad are visible on the same instrument. */}
+            and a gamepad are visible on the same instrument. In pose mode the
+            same two sticks lean the body, so they say so. */}
         <div className="sticks">
           <Joystick
             label={posing ? 'Lean' : 'Walk'}
@@ -148,37 +147,59 @@ export default function DrivePanel() {
           />
         </div>
 
-
-
+        {/* Walk and Turn are the everyday speed controls: they scale what goes
+            on the wire, independently, and 100% is what the remote sends. */}
         <div className="slider-row">
           <label htmlFor="lin">Walk</label>
-          <input id="lin" type="range" min={0.2} max={1} step={0.05} value={linear} disabled={posing} title="How far a full input pushes the walk stick" onChange={(e) => setLinear(Number(e.target.value))} />
+          <input
+            id="lin"
+            type="range"
+            min={0.2}
+            max={1}
+            step={0.05}
+            value={linear}
+            disabled={posing}
+            title="Walking speed, as a share of full stick. 100% matches the handheld remote"
+            onChange={(e) => setLinear(Number(e.target.value))}
+          />
           <span className="val">{Math.round(linear * 100)}%</span>
         </div>
         <div className="slider-row">
           <label htmlFor="ang">Turn</label>
-          <input id="ang" type="range" min={0.2} max={1} step={0.05} value={angular} disabled={posing} title="How far a full input pushes the turn stick" onChange={(e) => setAngular(Number(e.target.value))} />
+          <input
+            id="ang"
+            type="range"
+            min={0.2}
+            max={1}
+            step={0.05}
+            value={angular}
+            disabled={posing}
+            title="Turning speed, as a share of full stick. Independent of the walking speed above"
+            onChange={(e) => setAngular(Number(e.target.value))}
+          />
           <span className="val">{Math.round(angular * 100)}%</span>
         </div>
 
-        {/* Walk and Turn scale our own stick; Pace is the robot's gear and is
-            the only one of the three the robot itself holds. It is read back
-            from rt/multiplestate on connect, so it shows what is actually set
-            rather than needing to be applied again. */}
+        {/* Pace is a different lever: the robot's own gait gear, held on the
+            robot rather than here, which is why it is read back on connect. */}
         <div className="slider-row">
-          <label htmlFor="sl">Pace</label>
+          <label htmlFor="pace">Pace</label>
           <input
-            id="sl" type="range" min={-1} max={1} step={1} value={speedLevel} disabled={!connected}
-            title="The robot's own gait pace. Set on the robot, and read back when you connect"
-            onChange={(e) => setSpeedLevel(Number(e.target.value))}
-            onPointerUp={() => stance(stanceId('SpeedLevel'), { data: speedLevel }, 'Pace', () => setSpeedLevel(0))}
-            onKeyUp={() => stance(stanceId('SpeedLevel'), { data: speedLevel }, 'Pace', () => setSpeedLevel(0))}
+            id="pace"
+            type="range"
+            min={-1}
+            max={1}
+            step={1}
+            value={speedLevel}
+            disabled={!connected || posing}
+            title="The robot's own gait gear, held on the robot and read back when you connect. Walk and Turn above are the everyday speed controls"
+            onChange={(e) => sendPace(Number(e.target.value))}
           />
-          <span className="val">{speedLevel > 0 ? 'fast' : speedLevel < 0 ? 'slow' : 'normal'}</span>
+          <span className="val">{PACE_NAMES[speedLevel] ?? speedLevel}</span>
         </div>
-        {stanceError && (
+        {paceError && (
           <p className="note warn" role="alert">
-            {stanceError}
+            {paceError}
           </p>
         )}
 
@@ -188,7 +209,9 @@ export default function DrivePanel() {
           title={
             avoidance === null
               ? 'The robot has not reported this state yet'
-              : 'When on, the robot refuses drive commands that would hit something'
+              : avoidance
+                ? 'On: the robot refuses drive commands that would hit something'
+                : 'Off: the robot will drive into things if you steer it into them'
           }
         >
           <span className="toggle-label">
@@ -225,7 +248,7 @@ export default function DrivePanel() {
         <label
           className={`toggle${lidarOn ? ' on' : ''}`}
           style={{ marginTop: 8 }}
-          title="Off stops the lidar spinning, not just the map"
+          title={lidarOn ? 'Stop the lidar spinning' : 'Start the lidar. It spins while on, and feeds the Lidar tab'}
         >
           <span className="toggle-label">
             <ScanIcon size={15} />
