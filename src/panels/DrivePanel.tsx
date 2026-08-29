@@ -1,46 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Joystick from '../components/Joystick'
 import { useRobot } from '../state/RobotContext'
 import { useDriveLoop } from '../hooks/useDriveLoop'
-import { OBSTACLES_AVOID_API, SPORT_CMD, SPORT_CMD_MCF, TOPICS } from '../lib/constants'
+import { OBSTACLES_AVOID_API, TOPICS } from '../lib/constants'
 import { unwrapResponse } from '../lib/go2'
 import { ScanIcon, ShieldIcon } from '../components/Icons'
 
-/** Some state topics arrive as a JSON string inside the message rather than an object. */
-function decodeMaybeString<T>(value: unknown): T | null {
-  if (value == null) return null
-  if (typeof value === 'string') {
-    try {
-      return JSON.parse(value) as T
-    } catch {
-      return null
-    }
-  }
-  return value as T
-}
-
-interface MultipleState {
-  speedLevel?: number
-}
-
-const PACE_NAMES: Record<number, string> = { [-1]: 'slow', 0: 'normal', 1: 'fast' }
-
 /** Sticks, speed, and what the robot is allowed to sense. */
 export default function DrivePanel() {
-  const { connState, conn, sport, motionMode, posing, lidarOn, setLidarOn, log } = useRobot()
+  const { connState, conn, posing, lidarOn, setLidarOn, log } = useRobot()
   const connected = connState === 'connected'
 
-  const [speedLevel, setSpeedLevel] = useState(0)
   const [avoidance, setAvoidance] = useState<boolean | null>(null)
-  const [paceError, setPaceError] = useState<string | null>(null)
-  /** Set once the robot has reported its pace, so we stop overwriting the operator. */
-  const [paceRead, setPaceRead] = useState(false)
-  /**
-   * The last pace the robot accepted. A refused change goes back to this rather
-   * than to zero - reverting to a value the operator never chose is its own
-   * small lie about what the robot is doing.
-   */
-  const lastPace = useRef(0)
 
   // Read the current obstacle-avoidance state; reused by the recheck link
   // when the first read fails and the state is unknown.
@@ -57,25 +28,10 @@ export default function DrivePanel() {
   useEffect(() => {
     if (!connected) {
       setAvoidance(null)
-      setPaceRead(false)
-      setPaceError(null)
       return
     }
     void readAvoidance()
   }, [connected, readAvoidance])
-
-  // Seed the pace from what the robot actually has set, so the slider shows the
-  // truth on connect rather than claiming normal and needing to be applied again.
-  useEffect(() => {
-    if (!connected || paceRead) return
-    return conn.subscribe(TOPICS.MULTIPLE_STATE, (d) => {
-      const m = decodeMaybeString<MultipleState>(d)
-      if (typeof m?.speedLevel !== 'number') return
-      setSpeedLevel(m.speedLevel)
-      lastPace.current = m.speedLevel
-      setPaceRead(true)
-    })
-  }, [connected, conn, paceRead])
 
   const toggleAvoidance = async (next: boolean) => {
     try {
@@ -93,8 +49,10 @@ export default function DrivePanel() {
    * sends exactly what the handheld remote and the phone app send at full
    * stick, and lower values are slower.
    *
-   * This is a different thing from Pace below, which is the robot's own gait
-   * gear and is held on the robot.
+   * These are the only speed controls. The robot's own gait pace (SpeedLevel)
+   * was offered alongside them and is not: it only ever moved between slow and
+   * fast in practice, never back to normal, and it covers nothing these two do
+   * not already do more precisely and independently.
    */
   const [linear, setLinear] = useState(1)
   const [angular, setAngular] = useState(1)
@@ -103,21 +61,6 @@ export default function DrivePanel() {
 
   const onWalk = useCallback((x: number, y: number) => setStick({ x, y, z: 0 }), [setStick])
   const onTurn = useCallback((x: number) => setStick({ x: 0, y: 0, z: -x }), [setStick])
-
-  const sendPace = (next: number) => {
-    setSpeedLevel(next)
-    setPaceError(null)
-    const ids = motionMode === 'mcf' ? SPORT_CMD_MCF : SPORT_CMD
-    sport(ids.SpeedLevel, { data: next })
-      .then(() => {
-        lastPace.current = next
-        log(`Pace set to ${PACE_NAMES[next] ?? next}`)
-      })
-      .catch((e) => {
-        setPaceError(`Pace: ${(e as Error).message}`)
-        setSpeedLevel(lastPace.current)
-      })
-  }
 
   return (
     <>
@@ -179,29 +122,6 @@ export default function DrivePanel() {
           />
           <span className="val">{Math.round(angular * 100)}%</span>
         </div>
-
-        {/* Pace is a different lever: the robot's own gait gear, held on the
-            robot rather than here, which is why it is read back on connect. */}
-        <div className="slider-row">
-          <label htmlFor="pace">Pace</label>
-          <input
-            id="pace"
-            type="range"
-            min={-1}
-            max={1}
-            step={1}
-            value={speedLevel}
-            disabled={!connected || posing}
-            title="The robot's own gait gear, held on the robot and read back when you connect. Walk and Turn above are the everyday speed controls"
-            onChange={(e) => sendPace(Number(e.target.value))}
-          />
-          <span className="val">{PACE_NAMES[speedLevel] ?? speedLevel}</span>
-        </div>
-        {paceError && (
-          <p className="note warn" role="alert">
-            {paceError}
-          </p>
-        )}
 
         <label
           className={`toggle${avoidance ? ' on' : ''}`}
