@@ -51,7 +51,11 @@ export default function DrivePanel() {
    * go off together rather than fighting each other.
    */
   const setLidar = (next: boolean) => {
-    if (!next && avoidance) void toggleAvoidance(false)
+    // Sent whatever we believe the current state to be. The read at connect
+    // can fail, which leaves it unknown here while it is still very much on
+    // over on the robot - the one case where skipping this matters most.
+    // Disabling an already-disabled assist costs nothing.
+    if (!next) void toggleAvoidance(false)
     setLidarOn(next)
   }
 

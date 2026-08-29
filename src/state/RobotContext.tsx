@@ -214,11 +214,11 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (connState !== 'connected') return
     let cancelled = false
-    // Five fast repeats is what the firmware wants (it drops one routinely),
-    // but on the cloud relay a fast burst can be overtaken by an earlier
-    // in-flight ON, and the last packet to land is the one that wins. The two
-    // late repeats put the intent beyond any burst still in the air.
-    const AT = [0, 100, 200, 300, 400, 1200, 2500]
+    // Repeated because the firmware drops one routinely. It stays a tight
+    // burst: the sensor is observed to act on the off every time, so the
+    // packet is arriving, and trailing repeats seconds later only make it
+    // harder to tell our own traffic apart from whatever restarts it.
+    const AT = [0, 100, 200, 300, 400]
     const send = (state: 'ON' | 'OFF') => {
       for (const ms of AT) {
         setTimeout(() => {
