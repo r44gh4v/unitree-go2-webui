@@ -271,8 +271,7 @@ export interface ActionSpec {
 
 export const ACTIONS: ActionSpec[] = [
   // stand and rest
-  { name: 'BalanceStand', label: 'Ready stance', ids: { normal: 1002, ai: 1002, mcf: 1002 }, group: 'posture', note: 'Balanced and ready to walk. Run this after Stand up.' },
-  { name: 'StandUp', label: 'Stand up', ids: { normal: 1004, ai: 1004, mcf: 1004 }, group: 'posture', note: 'Rises with the joints locked. Follow with Ready stance.' },
+  { name: 'StandUp', label: 'Stand up', ids: { normal: 1004, ai: 1004, mcf: 1004 }, group: 'posture', note: 'Gets up and settles into a balanced stance, ready to walk' },
   { name: 'StandDown', label: 'Lie down', ids: { normal: 1005, ai: 1005, mcf: 1005 }, group: 'posture', note: 'Folds down and rests on the ground' },
   { name: 'Sit', label: 'Sit', ids: { normal: 1009, mcf: 1009 }, group: 'posture', note: 'Sits back on the hindquarters' },
   { name: 'RiseSit', label: 'Rise', ids: { normal: 1010, mcf: 1010 }, group: 'posture', note: 'Gets up out of a sit' },

@@ -15,7 +15,7 @@ type Phase = 'idle' | 'pending' | 'on' | 'failed'
  * out with them - otherwise a tile stays lit for something the robot stopped
  * doing, which is what made them look stuck.
  */
-const CLEARS_EVERYTHING = new Set(['StopMove', 'Damp', 'StandDown', 'Sit', 'RecoveryStand', 'BalanceStand', 'StandUp'])
+const CLEARS_EVERYTHING = new Set(['StopMove', 'Damp', 'StandDown', 'Sit', 'RecoveryStand', 'StandUp'])
 
 /**
  * Tooltip text: what the action does, then whatever the operator needs to know
@@ -98,13 +98,20 @@ export default function ActionsPanel() {
         } else {
           settle(a.name, next ? 'on' : 'idle')
         }
+        if (a.name === 'StandUp') {
+          // Standing up locks the joints, which is not a useful place to
+          // stop. Settling into the balanced stance is what makes the robot
+          // ready to walk, so it is part of the same press.
+          const ids = motionMode === 'mcf' ? SPORT_CMD_MCF : SPORT_CMD
+          sport(ids.BalanceStand).catch((e) => log(`Ready stance: ${(e as Error).message}`))
+        }
         log(`${a.label}${a.toggle ? (next ? ' on' : ' off') : ''} - the robot accepted it`)
       })
       .catch((e) => {
         const message = (e as Error).message
         // 4206 is the robot saying the posture is wrong for this move, which is
         // almost always cured by standing up first - say so rather than echoing.
-        const hint = message.includes('4206') ? `${message} Try Ready stance first.` : message
+        const hint = message.includes('4206') ? `${message} Try Stand up first.` : message
         settle(a.name, 'failed', hint)
         log(`${a.label} failed: ${message}`)
       })
