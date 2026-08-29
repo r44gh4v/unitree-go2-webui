@@ -31,6 +31,7 @@ export default function LidarPanel() {
   const renderRef = useRef<(() => void) | null>(null)
   const resetRef = useRef<(() => void) | null>(null)
   const topDownRef = useRef<(() => void) | null>(null)
+  const clearMapRef = useRef<(() => void) | null>(null)
   const [streaming, setStreaming] = useState(false)
   const [stats, setStats] = useState<{ faces: number; voxels: number; ts: number } | null>(null)
   const [status, setStatus] = useState<string | null>(null)
@@ -233,10 +234,11 @@ export default function LidarPanel() {
       }
       if (cancelled) return
       setStatus('Switching the lidar on…')
-      // The firmware routinely drops the first switch-on packet, so send it a
-      // few times at a short spacing (this is what the Go app does).
+      // The firmware routinely drops the first switch packet, so send it a few
+      // times at a short spacing, and in upper case - legion1581/unitree_ui
+      // sends ON and OFF, and lower case is what left the sensor still turning.
       for (let i = 0; i < 5 && !cancelled; i++) {
-        conn.publish(TOPICS.ULIDAR_SWITCH, 'on')
+        conn.publish(TOPICS.ULIDAR_SWITCH, 'ON')
         await new Promise((r) => setTimeout(r, 100))
       }
       if (!cancelled) setStatus('Waiting for the first frame…')
@@ -271,7 +273,10 @@ export default function LidarPanel() {
       cancelled = true
       clearTimeout(deadline)
       unsub()
-      conn.publish(TOPICS.ULIDAR_SWITCH, 'off')
+      // Same repetition on the way out: one OFF is routinely dropped, and a
+      // dropped OFF leaves the sensor spinning for no reason.
+      for (let i = 0; i < 5; i++) setTimeout(() => conn.publish(TOPICS.ULIDAR_SWITCH, 'OFF'), i * 100)
+      clearMapRef.current?.()
       setStatus(null)
     }
   }, [streaming, connected, conn, log])
@@ -290,21 +295,28 @@ export default function LidarPanel() {
     setStats(null)
     renderRef.current?.()
   }, [])
+  clearMapRef.current = clearMap
 
   return (
     <div className="section lidar-section">
       <p className="eyebrow">Lidar map</p>
       <p className="note">Uses real bandwidth, so it stays off until asked</p>
 
-      <button
-        className={`btn block${streaming ? ' on' : ''}`}
-        style={{ marginBottom: 8 }}
-        disabled={!connected}
-        title="Turn the head lidar on and stream its 3D occupancy map"
-        onClick={() => setStreaming((s) => !s)}
-      >
-        {streaming ? 'Stop lidar' : 'Start lidar'}
-      </button>
+      {/* The sensor itself, not just the picture. Off stops it turning, which
+          is worth doing when the map is not being used: it is a spinning part
+          and it costs bandwidth and battery. */}
+      <label className={`toggle${streaming ? ' on' : ''}`} style={{ marginBottom: 10 }} title="Off stops the lidar spinning, not just the map">
+        <span className="toggle-label">Lidar running</span>
+        <input
+          type="checkbox"
+          checked={streaming}
+          disabled={!connected}
+          onChange={(e) => setStreaming(e.target.checked)}
+          style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
+        />
+        <span className="track" />
+      </label>
+
 
       <div className="btn-row" style={{ marginBottom: 10 }}>
         <button className="btn sm" title="Back to the starting angle" onClick={() => resetRef.current?.()}>
