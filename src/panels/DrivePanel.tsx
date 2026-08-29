@@ -57,6 +57,16 @@ export default function DrivePanel() {
   const [linear, setLinear] = useState(1)
   const [angular, setAngular] = useState(1)
 
+  // Full travel every time, and never remembered. A speed you set for one
+  // careful run through a doorway should not still be in force next time you
+  // connect, quietly making the robot feel broken. Reloading gives the same
+  // fresh start, since nothing here is persisted.
+  useEffect(() => {
+    if (!connected) return
+    setLinear(1)
+    setAngular(1)
+  }, [connected])
+
   const { setStick, active } = useDriveLoop({ linear, angular }, connected)
 
   const onWalk = useCallback((x: number, y: number) => setStick({ x, y, z: 0 }), [setStick])
