@@ -17,6 +17,12 @@ type Phase = 'idle' | 'pending' | 'on' | 'failed'
  */
 const CLEARS_EVERYTHING = new Set(['StopMove', 'Damp', 'StandDown', 'Sit', 'RecoveryStand', 'StandUp'])
 
+/** sportmodestate.mode when the robot has risen but is still locked. */
+const MODE_JOINT_LOCK = 6
+
+/** How long to wait for the rise to finish before releasing it anyway. */
+const RISE_TIMEOUT_MS = 5000
+
 /**
  * Tooltip text: what the action does, then whatever the operator needs to know
  * before pressing it, and the api id last for anyone reading the protocol.
@@ -39,7 +45,11 @@ function describe(
 }
 
 export default function ActionsPanel() {
-  const { connState, motionMode, runAction, sport, apiIdFor, posing, setPosing, log } = useRobot()
+  const { connState, motionMode, runAction, sport, apiIdFor, posing, setPosing, sportState, log } = useRobot()
+  // Read through a ref so the waiter below sees fresh telemetry without
+  // being rebuilt every time a number changes.
+  const sportRef = useRef(sportState)
+  sportRef.current = sportState
   const connected = connState === 'connected'
   const [phase, setPhase] = useState<Record<string, Phase>>({})
   const [reason, setReason] = useState<Record<string, string>>({})
@@ -98,13 +108,7 @@ export default function ActionsPanel() {
         } else {
           settle(a.name, next ? 'on' : 'idle')
         }
-        if (a.name === 'StandUp') {
-          // Standing up locks the joints, which is not a useful place to
-          // stop. Settling into the balanced stance is what makes the robot
-          // ready to walk, so it is part of the same press.
-          const ids = motionMode === 'mcf' ? SPORT_CMD_MCF : SPORT_CMD
-          sport(ids.BalanceStand).catch((e) => log(`Ready stance: ${(e as Error).message}`))
-        }
+        if (a.name === 'StandUp') void settleIntoStance()
         log(`${a.label}${a.toggle ? (next ? ' on' : ' off') : ''} - the robot accepted it`)
       })
       .catch((e) => {
@@ -115,6 +119,29 @@ export default function ActionsPanel() {
         settle(a.name, 'failed', hint)
         log(`${a.label} failed: ${message}`)
       })
+  }
+
+  /**
+   * Standing up locks the joints, which is not a useful place to stop, so a
+   * press settles into the balanced stance as well.
+   *
+   * The wait matters. The robot accepts StandUp the moment it is asked but
+   * takes a couple of seconds to actually rise, and a BalanceStand sent
+   * during the rise is ignored - which is why standing up from lying down
+   * used to leave the robot locked until it was pressed a second time. So
+   * wait for it to report that it has arrived, and release it then.
+   */
+  const settleIntoStance = async () => {
+    const ids = motionMode === 'mcf' ? SPORT_CMD_MCF : SPORT_CMD
+    const deadline = Date.now() + RISE_TIMEOUT_MS
+    while (Date.now() < deadline && sportRef.current?.mode !== MODE_JOINT_LOCK) {
+      await new Promise((r) => setTimeout(r, 120))
+    }
+    try {
+      await sport(ids.BalanceStand)
+    } catch (e) {
+      log(`Ready stance: ${(e as Error).message}`)
+    }
   }
 
   const togglePose = async () => {
