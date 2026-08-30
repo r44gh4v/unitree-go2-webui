@@ -59,6 +59,19 @@ export function unwrapResponse<T = unknown>(res: ApiResponse): T {
 
 const HEARTBEAT_MS = 2000
 const REQUEST_TIMEOUT_MS = 8000
+/**
+ * How long the peer connection may sit in 'disconnected' before it is called
+ * lost. ICE consent checks lapse briefly whenever wifi wobbles, and more so
+ * on a relayed path, and the connection recovers on its own most of the
+ * time. Failing on the first blip is what made the link feel fragile.
+ */
+const DISCONNECT_GRACE_MS = 8000
+/**
+ * The robot publishes continuously, so an open channel carrying nothing at
+ * all for this long means it has gone without closing anything. Without the
+ * check the console keeps showing healthy numbers that stopped updating.
+ */
+const SILENCE_MS = 12000
 /** How long the robot gets to open the data channel and pass validation. */
 const HANDSHAKE_TIMEOUT_MS = 15000
 
@@ -181,6 +194,10 @@ export class Go2Connection extends EventTarget {
   private hbTimer: ReturnType<typeof setInterval> | null = null
   /** Fails the attempt if the robot never finishes the handshake. */
   private connectTimer: ReturnType<typeof setTimeout> | null = null
+  /** Runs while the peer connection is interrupted but may still recover. */
+  private dropTimer: ReturnType<typeof setTimeout> | null = null
+  /** When the robot last said anything at all, for the silence watchdog. */
+  private lastInboundAt = 0
   private pending = new Map<number, Pending>()
   private subs = new Map<string, Set<(data: unknown, message: ApiResponse) => void>>()
   private live = new Set<string>()
@@ -293,9 +310,23 @@ export class Go2Connection extends EventTarget {
     }
     pc.onconnectionstatechange = () => {
       this.traffic('sys', `peer connection: ${pc.connectionState}`)
-      if (pc.connectionState === 'failed') this.setState('error', 'peer connection failed')
-      else if (pc.connectionState === 'disconnected' && this.state === 'connected') {
-        this.setState('error', 'peer connection lost')
+      if (pc.connectionState === 'connected') {
+        // Recovered on its own, which is the common case.
+        this.clearDropTimer()
+        return
+      }
+      if (pc.connectionState === 'failed') {
+        this.clearDropTimer()
+        this.setState('error', 'peer connection failed')
+        return
+      }
+      if (pc.connectionState === 'disconnected' && this.state === 'connected' && !this.dropTimer) {
+        this.traffic('sys', `link interrupted - giving it ${DISCONNECT_GRACE_MS}ms to come back`)
+        this.dropTimer = setTimeout(() => {
+          this.dropTimer = null
+          if (this.state !== 'connected' || pc.connectionState === 'connected') return
+          this.setState('error', 'peer connection lost')
+        }, DISCONNECT_GRACE_MS)
       }
     }
 
@@ -379,6 +410,11 @@ export class Go2Connection extends EventTarget {
     }, HANDSHAKE_TIMEOUT_MS)
   }
 
+  private clearDropTimer() {
+    if (this.dropTimer) clearTimeout(this.dropTimer)
+    this.dropTimer = null
+  }
+
   private clearConnectTimer() {
     if (this.connectTimer) clearTimeout(this.connectTimer)
     this.connectTimer = null
@@ -404,6 +440,7 @@ export class Go2Connection extends EventTarget {
     // Invalidate any connect still in flight so it cannot revive this session.
     this.generation++
     this.clearConnectTimer()
+    this.clearDropTimer()
     if (this.hbTimer) clearInterval(this.hbTimer)
     this.hbTimer = null
     this.pending.forEach((p) => {
@@ -448,6 +485,7 @@ export class Go2Connection extends EventTarget {
 
   private handleMessage(raw: string | ArrayBuffer) {
     this.msgCount++
+    this.lastInboundAt = Date.now()
     if (raw instanceof ArrayBuffer) {
       this.byteCount += raw.byteLength
       this.handleBinary(raw)
@@ -641,7 +679,15 @@ export class Go2Connection extends EventTarget {
 
   private startHeartbeat() {
     if (this.hbTimer) clearInterval(this.hbTimer)
+    this.lastInboundAt = Date.now()
     const beat = () => {
+      // An open channel carrying nothing is not a link. Checked before the
+      // beat, so a robot that has gone gets reported rather than beaten at.
+      if (this.state === 'connected' && Date.now() - this.lastInboundAt > SILENCE_MS) {
+        this.traffic('sys', `nothing from the robot for ${SILENCE_MS}ms`)
+        this.setState('error', 'the robot stopped sending - the link is open but silent')
+        return
+      }
       const now = new Date()
       this.sendRaw(
         {

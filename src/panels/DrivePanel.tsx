@@ -6,6 +6,15 @@ import { OBSTACLES_AVOID_API, TOPICS } from '../lib/constants'
 import { unwrapResponse } from '../lib/go2'
 import { ScanIcon, ShieldIcon } from '../components/Icons'
 
+/**
+ * How long switching the lidar off waits for the obstacle-avoidance disable
+ * to come back before going ahead regardless. Long enough for the reply on
+ * a healthy link, far short of the 8s an unanswered api call takes.
+ */
+const AVOID_ACK_MS = 600
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
 /** Sticks, speed, and what the robot is allowed to sense. */
 export default function DrivePanel() {
   const { connState, conn, posing, lidarOn, setLidarOn, log } = useRobot()
@@ -70,7 +79,12 @@ export default function DrivePanel() {
   const setLidar = async (next: boolean) => {
     setLinking(true)
     try {
-      if (!next) await toggleAvoidance(false)
+      // The disable is on the wire before the lidar off either way, and that
+      // is the ordering that matters. Waiting for its reply is not: an api
+      // call that goes unanswered takes the full 8s timeout, and over the
+      // cloud relay that happens. The operator asked a moving part to stop,
+      // so it stops on a short grace period whether the assist answers or not.
+      if (!next) await Promise.race([toggleAvoidance(false), sleep(AVOID_ACK_MS)])
       setLidarOn(next)
     } finally {
       setLinking(false)
