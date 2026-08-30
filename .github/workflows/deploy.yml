@@ -18,5 +18,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+
+      # Checked here rather than left to the Vercel build, so a failure names
+      # itself in the commit that caused it instead of surfacing as a deploy
+      # that quietly did not happen. npm run build is typecheck plus bundle.
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
       - run: npm install --global vercel
       - run: vercel deploy --prod --yes --name=unitree-go2-webui --token=${{ secrets.VERCEL_TOKEN }}
