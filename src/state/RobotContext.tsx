@@ -312,10 +312,18 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   const lastConnect = useRef<ConnectOptions | null>(null)
   /** Set when the operator hangs up, so recovery does not undo their choice. */
   const userQuit = useRef(false)
+  /**
+   * Whether this set of connection details ever produced a working link.
+   * Recovery is for a link that dropped, not for one that never worked: a
+   * mistyped address should fail once and say so, not fail five times over
+   * half a minute while the operator waits to find out what is wrong.
+   */
+  const everConnected = useRef(false)
   const [canRetry, setCanRetry] = useState(false)
 
   const connect = useCallback(
     async (opts: ConnectOptions) => {
+      if (opts !== lastConnect.current) everConnected.current = false
       lastConnect.current = opts
       userQuit.current = false
       setCanRetry(true)
@@ -333,6 +341,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
 
   const disconnect = useCallback(() => {
     userQuit.current = true
+    everConnected.current = false
     conn.disconnect()
     setStream(null)
     setLowState(null)
@@ -360,11 +369,13 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (connState === 'connected') {
       autoAttempt.current = 0
+      everConnected.current = true
       return
     }
     if (connState !== 'error' && connState !== 'closed') return
-    // A deliberate disconnect is not a fault to recover from.
-    if (userQuit.current || !lastConnect.current) return
+    // A deliberate disconnect is not a fault to recover from, and neither is
+    // a set of details that has never worked in the first place.
+    if (userQuit.current || !lastConnect.current || !everConnected.current) return
 
     const n = autoAttempt.current
     if (n >= AUTO_BACKOFF_MS.length) {
