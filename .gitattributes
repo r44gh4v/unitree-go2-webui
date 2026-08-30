@@ -1,0 +1,13 @@
+# The repository stores text as LF. Without eol=lf the working copy on
+# Windows is CRLF instead, which git hides but tooling does not: scripts that
+# match on exact source text silently stop matching. Keep both the same.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.wasm binary
+*.pcd binary
