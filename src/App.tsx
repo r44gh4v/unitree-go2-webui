@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { isTextEntry } from './lib/focus'
 import AuthGate from './components/AuthGate'
 import { RobotProvider, useRobot } from './state/RobotContext'
 import Split from './components/Split'
@@ -98,7 +99,42 @@ function Rail() {
   )
 }
 
+/**
+ * Nothing keeps focus after a click.
+ *
+ * A button, toggle or slider that stays focused once the pointer is done with
+ * it goes on eating the keyboard: arrow keys nudge the slider the operator
+ * thought they had finished with, and the ring reads as stuck. The drive keys
+ * are what suffer, since driving is what the operator does next.
+ *
+ * Pointer interaction only. Tabbing to a control still focuses it and still
+ * shows its ring, which is the whole point of a focus ring. Text fields keep
+ * focus too, or clicking into one to type would immediately undo itself.
+ */
+function useNoStuckFocus() {
+  useEffect(() => {
+    const drop = () => {
+      const el = document.activeElement as HTMLElement | null
+      if (!el || el === document.body || isTextEntry(el)) return
+      el.blur()
+    }
+    // click fires after pointerup, so the blur is deferred a tick and the
+    // control gets its activation before it loses focus.
+    let queued: ReturnType<typeof setTimeout> | null = null
+    const onUp = () => {
+      if (queued) clearTimeout(queued)
+      queued = setTimeout(drop, 0)
+    }
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      if (queued) clearTimeout(queued)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [])
+}
+
 function Workspace() {
+  useNoStuckFocus()
   const [tab, setTab] = useState<(typeof TABS)[number]['key']>('actions')
   const Active = TABS.find((t) => t.key === tab)!.Panel
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { isTextEntry } from '../lib/focus'
 import { useRobot } from '../state/RobotContext'
 
 const SEND_HZ = 20
@@ -89,12 +90,11 @@ export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
 
   // keyboard
   useEffect(() => {
-    const isTyping = (t: EventTarget | null) => {
-      const el = t as HTMLElement | null
-      return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)
-    }
     const down = (e: KeyboardEvent) => {
-      if (isTyping(e.target)) return
+      // Only a control being typed into gets the keys. This used to match
+      // every <input>, so touching a speed slider or a toggle left the
+      // drive keys dead until something else was clicked.
+      if (isTextEntry(e.target)) return
       const k = e.key.toLowerCase()
       if (DRIVE_KEYS.has(k)) {
         keys.current.add(k)
