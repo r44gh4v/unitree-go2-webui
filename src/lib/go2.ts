@@ -7,7 +7,7 @@
 // JSON *string*, and responses are matched purely on header.identity.id.
 
 import { md5 } from 'js-md5'
-import { API_STATUS_CODES, DATA_CHANNEL_TYPE, TOPICS } from './constants'
+import { API_STATUS_CODES, DATA_CHANNEL_TYPE, SPORT_CMD, TOPICS } from './constants'
 import { lastServerInfo } from './serverInfo'
 import { decodeVoxelMesh, type VoxelMesh } from './voxel'
 
@@ -72,6 +72,12 @@ const DISCONNECT_GRACE_MS = 8000
  * check the console keeps showing healthy numbers that stopped updating.
  */
 const SILENCE_MS = 12000
+/**
+ * How long to let a parting StopMove reach the wire before the transport is
+ * torn down under it. Closing the peer connection immediately after a send
+ * can take the send with it.
+ */
+const SAFE_FLUSH_MS = 250
 /** How long the robot gets to open the data channel and pass validation. */
 const HANDSHAKE_TIMEOUT_MS = 15000
 
@@ -321,6 +327,10 @@ export class Go2Connection extends EventTarget {
         return
       }
       if (pc.connectionState === 'disconnected' && this.state === 'connected' && !this.dropTimer) {
+        // Sent while there may still be a path. If the link comes back the
+        // robot has merely stopped, which is recoverable; if it does not,
+        // this was the last chance to say anything at all.
+        this.makeSafe('link interrupted')
         this.traffic('sys', `link interrupted - giving it ${DISCONNECT_GRACE_MS}ms to come back`)
         this.dropTimer = setTimeout(() => {
           this.dropTimer = null
@@ -436,7 +446,30 @@ export class Go2Connection extends EventTarget {
     })
   }
 
+  /**
+   * Leave the robot somewhere it can be left alone.
+   *
+   * Locomotion looks after itself: the robot stops walking when velocity
+   * commands stop arriving. A mode does not. A robot put into a handstand or
+   * a gait from here stays in it after the console is gone, with nothing on
+   * the robot to bring it out, and that is the state that is unsafe to walk
+   * away from. StopMove halts locomotion and drops the mode with it.
+   *
+   * Fire-and-forget by necessity - this runs while the link is going or
+   * already gone, so there is nobody left to wait for a reply from, and a
+   * best-effort send that may not arrive still beats not trying.
+   */
+  makeSafe(why: string) {
+    if (!this.isOpen) return false
+    this.traffic('sys', `${why} - sending StopMove so the robot is not left in a mode`)
+    this.sendNoReply(TOPICS.SPORT_MOD, SPORT_CMD.StopMove)
+    return true
+  }
   disconnect() {
+    // Hanging up is the one moment the console knows the link is about to go
+    // while it can still use it, so it is the best chance to leave the robot
+    // in a state nobody has to come back to.
+    const parting = this.makeSafe('closing the link')
     // Invalidate any connect still in flight so it cannot revive this session.
     this.generation++
     this.clearConnectTimer()
@@ -455,14 +488,22 @@ export class Go2Connection extends EventTarget {
     this.fileDownloads.clear()
     this.live.clear()
     this.chunks.clear()
-    try {
-      this.dc?.close()
-      this.pc?.close()
-    } catch {
-      /* already torn down */
-    }
+    // Handed to locals first: the parting StopMove above is already queued on
+    // this channel, and closing the transport now would discard it.
+    const dc = this.dc
+    const pc = this.pc
     this.dc = null
     this.pc = null
+    const shut = () => {
+      try {
+        dc?.close()
+        pc?.close()
+      } catch {
+        /* already torn down */
+      }
+    }
+    if (parting) setTimeout(shut, SAFE_FLUSH_MS)
+    else shut()
     this.mediaStream = new MediaStream()
     this.setState('closed')
   }

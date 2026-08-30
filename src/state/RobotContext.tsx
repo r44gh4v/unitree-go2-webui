@@ -364,6 +364,22 @@ export function RobotProvider({ children }: { children: ReactNode }) {
    * Attempts back off and then stop. A robot that is switched off should not
    * be knocked on forever, and at that point the operator wants to know.
    */
+  /**
+   * Closing the tab, navigating away, or shutting the lid is a disconnect the
+   * operator never presses a button for, and it leaves the robot in whatever
+   * mode it was put into. pagehide is the last moment a send can still go out.
+   *
+   * pagehide rather than beforeunload: it fires for the phone and laptop cases
+   * that beforeunload misses, and it does not risk a confirmation dialog.
+   */
+  useEffect(() => {
+    const onGone = () => {
+      if (connState === 'connected') conn.makeSafe('page closing')
+    }
+    window.addEventListener('pagehide', onGone)
+    return () => window.removeEventListener('pagehide', onGone)
+  }, [conn, connState])
+
   const autoAttempt = useRef(0)
 
   useEffect(() => {
