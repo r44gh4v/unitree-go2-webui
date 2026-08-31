@@ -150,7 +150,7 @@ export default function MappingPanel() {
       const bundle = await Promise.all(
         files.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) })),
       )
-      await conn.uploadMap(bundle, (name, frac) => setDlStatus(`Sending ${name} ${Math.round(frac * 100)}%…`))
+      await conn.files.uploadMap(bundle, (name, frac) => setDlStatus(`Sending ${name} ${Math.round(frac * 100)}%…`))
       setDlStatus(`Restored ${bundle.map((b) => b.name).join(', ')}. Set the map id, then start localisation.`)
     } catch (e) {
       setDlStatus(`Restore failed: ${(e as Error).message}`)
@@ -198,7 +198,7 @@ export default function MappingPanel() {
     setDownloading(true)
     setDlStatus('Asking the robot for the map…')
     try {
-      const files = await conn.downloadMap((f) => setDlStatus(`Fetching ${f}…`))
+      const files = await conn.files.downloadMap((f) => setDlStatus(`Fetching ${f}…`))
       if (!files.length) {
         setDlStatus('The robot returned no map data - build a map first.')
         return
