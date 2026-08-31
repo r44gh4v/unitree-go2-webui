@@ -12,6 +12,7 @@ import {
 } from '../lib/constants'
 import type { LowState, RobotError, SportModeState } from '../lib/types'
 import { ReconnectPolicy } from '../lib/reconnect'
+import { MessageRate } from '../lib/messageRate'
 import { sendsToggleData } from '../lib/actionKinds'
 import { useSensing, type Sensing } from '../hooks/useSensing'
 
@@ -168,9 +169,9 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   const [motionMode, setMotionMode] = useState<MotionMode>('normal')
   const [reportedMode, setReportedMode] = useState<string | null>(null)
   const [linkStats, setLinkStats] = useState({ messages: 0, bytes: 0, topics: 0, rate: 0 })
-  // Tracks the last sample so the flush loop can turn the running message count
-  // into a smoothed messages-per-second rate.
-  const rateSample = useRef({ messages: 0, at: 0, rate: 0 })
+  // Messages per second is the only reading that tells a live robot from a
+  // frozen one; the rest are just the last values that arrived.
+  const rate = useRef(new MessageRate()).current
 
   // High-rate telemetry accumulates in refs; a slow timer flushes it into state
   // so React re-renders at a readable rate instead of hundreds of times a second.
@@ -284,24 +285,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
         setTraffic((prev) => [...prev, ...chunk].slice(-TRAFFIC_LIMIT))
       }
       const s = conn.stats
-      const now = performance.now()
-      const prev = rateSample.current
-      if (prev.at === 0) {
-        prev.at = now
-        prev.messages = s.messages
-      } else {
-        const dt = (now - prev.at) / 1000
-        if (dt >= 0.5) {
-          // messages reset to zero on a fresh connection; don't report a negative delta
-          const delta = s.messages >= prev.messages ? s.messages - prev.messages : s.messages
-          const inst = delta / dt
-          // light smoothing so the number doesn't jitter every update
-          prev.rate = prev.rate === 0 ? inst : prev.rate * 0.5 + inst * 0.5
-          prev.messages = s.messages
-          prev.at = now
-        }
-      }
-      setLinkStats({ ...s, rate: Math.round(prev.rate) })
+      setLinkStats({ ...s, rate: Math.round(rate.sample(s.messages, performance.now())) })
     }, UI_FLUSH_MS)
     return () => clearInterval(t)
   }, [conn])
@@ -322,7 +306,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       setCanRetry(true)
       setConnError(null)
       setRobotErrors([])
-      rateSample.current = { messages: 0, at: 0, rate: 0 }
+      rate.reset()
       await conn.connect(opts)
     },
     [conn],
