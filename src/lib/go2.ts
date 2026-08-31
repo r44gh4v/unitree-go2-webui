@@ -11,6 +11,7 @@ import { API_STATUS_CODES, DATA_CHANNEL_TYPE, SPORT_CMD, TOPICS } from './consta
 import { lastServerInfo } from './serverInfo'
 import { decodeVoxelMesh, type VoxelMesh } from './voxel'
 import { ChunkAssembler, readFrame, type ChunkInfo } from './frames'
+import { nextRequestId } from './correlation'
 import { FileTransfer } from './fileTransfer'
 
 export type ConnState = 'idle' | 'connecting' | 'validating' | 'connected' | 'error' | 'closed'
@@ -91,14 +92,9 @@ function hexToBase64(hex: string): string {
   return btoa(bin)
 }
 
-
 /** Validation answer the robot expects: base64(md5_bytes("UnitreeGo2_" + key)). */
 export function encryptValidationKey(key: string): string {
   return hexToBase64(md5(`UnitreeGo2_${key}`))
-}
-
-function genId(): number {
-  return (Date.now() % 2147483648) + Math.floor(Math.random() * 1000)
 }
 
 function formatRobotTime(d: Date): string {
@@ -111,7 +107,6 @@ interface Pending {
   reject: (e: Error) => void
   timer: ReturnType<typeof setTimeout>
 }
-
 
 export interface ConnectOptions {
   /** how to reach the robot; defaults to a direct address */
@@ -183,7 +178,7 @@ export class Go2Connection extends EventTarget {
       isOpen: () => this.isOpen,
       send: (data) => this.sendRaw({ type: DATA_CHANNEL_TYPE.RTC_INNER_REQ, topic: '', data }, true),
       note: (text) => this.traffic('sys', text),
-      nextId: () => String(genId()),
+      nextId: () => String(nextRequestId()),
     })
   }
 
@@ -554,9 +549,9 @@ export class Go2Connection extends EventTarget {
   }
 
   /**
-   * Binary frames carry a JSON header plus a payload. Two framings exist:
-   * the classic one (uint16 LE header length at offset 0, JSON at 4), and a
-   * lidar variant marked by a (2, 0) uint16 pair (uint32 LE length, JSON at 8).
+   * Route one binary frame: lidar voxels get decoded, anything else is either
+   * the answer to a pending request or a topic payload. The byte layouts and
+   * their reassembly live in lib/frames.ts.
    */
   private handleBinary(buf: ArrayBuffer) {
     const frame = readFrame(buf)
@@ -662,6 +657,11 @@ export class Go2Connection extends EventTarget {
       // beat, so a robot that has gone gets reported rather than beaten at.
       if (this.state === 'connected' && Date.now() - this.lastInboundAt > SILENCE_MS) {
         this.traffic('sys', `nothing from the robot for ${SILENCE_MS}ms`)
+        // Stop beating as well as reporting. Declaring the link dead does not
+        // tear anything down, so without this the interval went on talking to
+        // a robot that had gone, every two seconds, until the page was closed.
+        if (this.hbTimer) clearInterval(this.hbTimer)
+        this.hbTimer = null
         this.setState('error', 'the robot stopped sending - the link is open but silent')
         return
       }
@@ -695,8 +695,12 @@ export class Go2Connection extends EventTarget {
     set.add(cb)
     if (this.state === 'connected') this.sendSubscribe(topic)
     return () => {
-      set!.delete(cb)
-      if (set!.size === 0) {
+      set.delete(cb)
+      // The closure holds the set that was current when it was made. If this
+      // topic has since been dropped and taken up again by someone else, that
+      // is a different set, and tearing down on the strength of this one empty
+      // would cancel a subscription still in use.
+      if (set.size === 0 && this.subs.get(topic) === set) {
         this.subs.delete(topic)
         if (this.live.delete(topic)) this.sendRaw({ type: DATA_CHANNEL_TYPE.UNSUBSCRIBE, topic })
       }
@@ -732,7 +736,7 @@ export class Go2Connection extends EventTarget {
   }
 
   private buildRequest(apiId: number, parameter?: unknown, extraHeader?: Record<string, unknown>) {
-    const id = genId()
+    const id = nextRequestId()
     const payload: Record<string, unknown> = {
       header: { identity: { id, api_id: apiId }, ...extraHeader },
       parameter: parameter === undefined ? '' : typeof parameter === 'string' ? parameter : JSON.stringify(parameter),
@@ -831,7 +835,7 @@ export class Go2Connection extends EventTarget {
         reject(new Error('Not connected'))
         return
       }
-      const uuid = genId()
+      const uuid = nextRequestId()
       this.sendRaw({
         type: DATA_CHANNEL_TYPE.RTC_INNER_REQ,
         topic: '',
@@ -844,7 +848,6 @@ export class Go2Connection extends EventTarget {
       this.pending.set(uuid, { resolve, reject, timer })
     })
   }
-
 
 }
 
