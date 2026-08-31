@@ -15,6 +15,7 @@ import { ReconnectPolicy } from '../lib/reconnect'
 import { useTelemetryFeed } from '../hooks/useTelemetryFeed'
 import { useLinkState } from '../hooks/useLinkState'
 import { sendsToggleData } from '../lib/actionKinds'
+import { resolveAction, type Availability } from '../lib/actionAvailability'
 import { useSensing, type Sensing } from '../hooks/useSensing'
 
 /** sportmodestate.mode while the robot is holding a pose. */
@@ -71,14 +72,8 @@ export interface MotionApi {
   /** what the robot says it is running, which can differ from `mode` */
   reportedMode: string | null
   setMode: (m: MotionMode) => void
-  /**
-   * Which id to send for an action, and whether the running motion service
-   * actually lists it. `exact: false` means we are falling back to another
-   * service's id - the robot may well accept it, and if it does not it answers
-   * "API not registered", which is a better outcome than the console deciding
-   * on the robot's behalf that the button cannot be pressed.
-   */
-  apiIdFor: (a: ActionSpec) => { apiId: number; exact: boolean; from: MotionMode } | null
+  /** How an action stands against the running motion service. */
+  availabilityOf: (a: ActionSpec) => Availability
   sport: (apiId: number, parameter?: unknown) => Promise<ApiResponse>
   runAction: (a: ActionSpec, toggleOn?: boolean) => Promise<ApiResponse>
   move: (x: number, y: number, z: number) => void
@@ -300,32 +295,24 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     [conn],
   )
 
-  const apiIdFor = useCallback(
-    (a: ActionSpec) => {
-      const exact = a.ids[motionMode]
-      if (exact !== undefined) return { apiId: exact, exact: true, from: motionMode }
-      // Our id tables are transcriptions, not the robot's own manifest, so an
-      // action missing from the running service may simply be missing from our
-      // table. Offer the id we do have and let the robot be the one to refuse.
-      for (const mode of ['mcf', 'ai', 'advanced', 'normal'] as MotionMode[]) {
-        const id = a.ids[mode]
-        if (id !== undefined) return { apiId: id, exact: false, from: mode }
-      }
-      return null
-    },
-    [motionMode],
-  )
+  /**
+   * How an action stands against the service the robot is running. The policy -
+   * borrow an id rather than refuse, and let the robot be the one to say no -
+   * lives in lib/actionAvailability.ts, so a tile asks one question instead of
+   * reassembling the answer from protocol detail.
+   */
+  const availabilityOf = useCallback((a: ActionSpec) => resolveAction(a, motionMode), [motionMode])
 
   const runAction = useCallback(
     (a: ActionSpec, toggleOn = true) => {
-      const resolved = apiIdFor(a)
-      if (!resolved) {
+      const stands = resolveAction(a, motionMode)
+      if (stands.apiId === null) {
         return Promise.reject(new Error(`${a.label} has no known command id`))
       }
       const parameter = sendsToggleData(a.kind) ? { data: toggleOn } : a.parameter
-      return conn.request(TOPICS.SPORT_MOD, resolved.apiId, parameter)
+      return conn.request(TOPICS.SPORT_MOD, stands.apiId, parameter)
     },
-    [conn, apiIdFor],
+    [conn, motionMode],
   )
 
   const move = useCallback(
@@ -405,7 +392,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       mode: motionMode,
       reportedMode,
       setMode: setMotionMode,
-      apiIdFor,
+      availabilityOf,
       sport,
       runAction,
       move,
@@ -416,7 +403,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       refreshMode: refreshMotionMode,
       switchMode: switchMotionMode,
     }),
-    [posing, setPosingManually, motionMode, reportedMode, apiIdFor, sport, runAction, move, moveSticks, setEuler, stopMove, emergencyStop, refreshMotionMode, switchMotionMode],
+    [posing, setPosingManually, motionMode, reportedMode, availabilityOf, sport, runAction, move, moveSticks, setEuler, stopMove, emergencyStop, refreshMotionMode, switchMotionMode],
   )
 
   const media = useMemo<MediaApi>(

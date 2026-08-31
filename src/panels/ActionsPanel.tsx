@@ -4,6 +4,7 @@ import { ACTIONS, ACTION_GROUPS, type ActionSpec } from '../lib/actions'
 import { actionIconSvg } from '../lib/actionIcons'
 import { SPORT_CMD, SPORT_CMD_MCF } from '../lib/constants'
 import { clearsEverything, isExclusive, staysLit } from '../lib/actionKinds'
+import type { Availability } from '../lib/actionAvailability'
 
 /** How long a refusal stays on the tile before it goes quiet again. */
 const FAIL_MS = 5000
@@ -14,26 +15,19 @@ type Phase = 'idle' | 'pending' | 'on' | 'failed'
  * Tooltip text: what the action does, then whatever the operator needs to know
  * before pressing it, and the api id last for anyone reading the protocol.
  */
-function describe(
-  a: ActionSpec,
-  resolved: { apiId: number; exact: boolean; from: string } | null,
-  mode: string,
-  phase: Phase,
-  reason?: string,
-): string {
+function describe(a: ActionSpec, stands: Availability, phase: Phase, reason?: string): string {
   const parts = [a.note ?? a.label]
-  if (!resolved) parts.push('No command id is known for this action.')
-  else if (phase === 'failed' && reason) parts.push(reason)
-  else if (!resolved.exact) {
-    parts.push(`The ${mode} service does not list this. Sends the ${resolved.from} id, and the robot may refuse it.`)
-  } else if (staysLit(a.kind)) parts.push(phase === 'on' ? 'Press again to stop.' : 'Stays on until pressed again.')
-  if (resolved) parts.push(`api ${resolved.apiId}`)
+  // A failure the operator just caused outranks a caveat about the id.
+  if (phase === 'failed' && reason) parts.push(reason)
+  else if (stands.why) parts.push(stands.why)
+  else if (staysLit(a.kind)) parts.push(phase === 'on' ? 'Press again to stop.' : 'Stays on until pressed again.')
+  if (stands.apiId !== null) parts.push(`api ${stands.apiId}`)
   return parts.join(' · ')
 }
 
 export default function ActionsPanel() {
   const { connState, motion, log } = useRobot()
-  const { mode: motionMode, runAction, sport, apiIdFor, posing, setPosing } = motion
+  const { mode: motionMode, runAction, sport, availabilityOf, posing, setPosing } = motion
   const connected = connState === 'connected'
   const [phase, setPhase] = useState<Record<string, Phase>>({})
   const [reason, setReason] = useState<Record<string, string>>({})
@@ -135,12 +129,9 @@ export default function ActionsPanel() {
             <p className="note">{group.note}</p>
             <div className="btn-grid">
               {items.map((a) => {
-                const resolved = apiIdFor(a)
-                // Only genuinely unknown actions are blocked. One the running
-                // service does not list is still offered, marked untested, and
-                // the robot gets to be the one that says no.
-                const unavailable = !resolved
-                const untested = connected && !!resolved && !resolved.exact
+                const stands = availabilityOf(a)
+                const unavailable = !stands.usable
+                const untested = connected && stands.untested
                 // Pose mode is shared state - the drive loop reads it too - so
                 // it comes from the context rather than this panel's own map.
                 const p: Phase = a.kind === 'pose' ? (posing ? 'on' : 'idle') : (phase[a.name] ?? 'idle')
@@ -159,7 +150,7 @@ export default function ActionsPanel() {
                     aria-pressed={staysLit(a.kind) ? p === 'on' : undefined}
                     aria-busy={p === 'pending' || undefined}
                     disabled={!connected || unavailable || p === 'pending'}
-                    title={describe(a, resolved, motionMode, p, reason[a.name])}
+                    title={describe(a, stands, p, reason[a.name])}
                     // Clicking a tile left the focus ring on it afterwards, so
                     // a pressed action looked stuck. Suppressing focus on
                     // pointer press keeps the ring for Tab, where it is needed,
