@@ -103,6 +103,12 @@ function clientAddr(req) {
 
 function overAttemptBudget(addr) {
   const now = Date.now()
+  // Every address that ever tried once stayed in this table for the life of the
+  // process, so a long-running local server grew a row per distinct source and
+  // never gave one back. Expired addresses are dropped on the way past.
+  for (const [key, times] of attempts) {
+    if (times.every((t) => now - t >= ATTEMPT_WINDOW_MS)) attempts.delete(key)
+  }
   const list = (attempts.get(addr) ?? []).filter((t) => now - t < ATTEMPT_WINDOW_MS)
   list.push(now)
   attempts.set(addr, list)

@@ -13,6 +13,7 @@ import express from 'express'
 import { signalRobot } from './signaling.mjs'
 import { discoverRobots, resolveSerial } from './discovery.mjs'
 import { cloudLogin, getCloudTurn, signalViaCloud } from './cloud.mjs'
+import { isRobotAddress } from './address.mjs'
 import { installAuth } from './auth.mjs'
 
 /** True when running as a Vercel serverless function, where there is no LAN. */
@@ -91,6 +92,9 @@ export function createApp() {
         if (!target) throw new Error(`No robot with serial ${serial} answered on this network`)
       }
       if (!target) throw new Error('Enter the robot address')
+      // The address ends up inside the URL this server then fetches, so it
+      // decides where the proxy connects. Only a robot address may.
+      if (!isRobotAddress(target)) throw new Error(`${target} is not a robot address`)
 
       const answer = await signalRobot(target, sdp, token, aesKey, method === 'ap')
       res.json({ ...answer, ip: target })
@@ -128,7 +132,8 @@ export function createApp() {
       return
     }
     try {
-      res.json({ ip: await resolveSerial(serial, 2500) })
+      const found = await resolveSerial(serial, 2500)
+      res.json({ ip: isRobotAddress(found) ? found : null })
     } catch {
       res.json({ ip: null })
     }
