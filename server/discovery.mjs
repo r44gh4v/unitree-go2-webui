@@ -82,15 +82,20 @@ export function probePort(ip, port, timeoutMs) {
   })
 }
 
-const toInt = (ip) => ip.split('.').reduce((n, o) => (n << 8 >>> 0) + Number(o), 0) >>> 0
-const toIp = (n) => [24, 16, 8, 0].map((s) => (n >>> s) & 255).join('.')
+/**
+ * An address as a number, and back. Every step is forced unsigned: without the
+ * >>> a shift past bit 31 goes negative, which turns a netmask into a negative
+ * number and the whole sweep into nonsense.
+ */
+export const toInt = (ip) => ip.split('.').reduce((n, o) => (n << 8 >>> 0) + Number(o), 0) >>> 0
+export const toIp = (n) => [24, 16, 8, 0].map((s) => (n >>> s) & 255).join('.')
 
 /**
  * Widest sweep we will attempt. A /24 is 254 hosts; some home routers hand out
  * a /19, which is 8190. Beyond this the sweep costs more than it is worth and
  * the address is better typed in.
  */
-const MAX_SWEEP_HOSTS = 8192
+export const MAX_SWEEP_HOSTS = 8192
 
 /**
  * Addresses worth probing, in the order worth probing them: this machine's own
@@ -100,10 +105,10 @@ const MAX_SWEEP_HOSTS = 8192
  * The netmask matters. Assuming a /24 is what made discovery come up empty on a
  * /19 network - the robot was three octets away and simply never scanned.
  */
-function candidateAddresses() {
+export function candidateAddresses(interfaces = os.networkInterfaces()) {
   const near = []
   const far = []
-  for (const addrs of Object.values(os.networkInterfaces())) {
+  for (const addrs of Object.values(interfaces)) {
     for (const a of addrs ?? []) {
       if (a.family !== 'IPv4' || a.internal) continue
       const self = toInt(a.address)
