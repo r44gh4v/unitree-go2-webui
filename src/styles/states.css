@@ -1,0 +1,506 @@
+/* How a control looks in each state, the rail, and the shapes layer.
+ *
+ * Part of the stylesheet, split at the section markers it already carried.
+ * Import order in styles.css is the cascade order and is load-bearing: the
+ * later parts override the earlier ones on purpose. */
+
+/* ---------- fault list ---------- */
+
+/* Faults sit at the foot of the status panel. A burst of them must not be able
+   to grow the panel without bound, so the list keeps its own scroll. */
+.faults {
+  max-height: 168px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+
+.fault { margin-bottom: 6px; }
+.fault:last-child { margin-bottom: 0; }
+.fault-text { font-size: 13px; font-weight: 600; color: var(--text-strong); }
+.fault-meta { font-size: 11px; color: var(--muted); }
+
+/* The count that sits with the stats and scrolls down to the list. */
+.fault-jump {
+  margin-top: 10px;
+  cursor: pointer;
+  background: none;
+  font: inherit;
+}
+.fault-jump:hover { border-color: var(--warn); }
+
+/* ---------- control states ---------- */
+
+/* Four things can be true of a control, and they must not look alike:
+   it is on, the robot is working on it, the robot refused it, or it is not
+   offered at all right now. Colour alone never carries any of them - each
+   also changes shape, edge or marker. */
+
+/* Refused. Held for a few seconds with the reason in the tooltip, so there is
+   time to read it before the tile goes quiet again. */
+.btn.failed {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: var(--surface);
+}
+.btn.action.failed .action-label { font-weight: 650; }
+
+/* Not offered: the command does not exist in the motion service the robot is
+   running. Kept visible and legible - hiding these is what made half the
+   action grid vanish - but clearly set apart from a button that is merely
+   waiting for a connection. */
+.btn.unavailable {
+  border-style: dashed;
+  border-color: var(--line-strong);
+  color: var(--faint);
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--surface),
+    var(--surface) 5px,
+    var(--sunken) 5px,
+    var(--sunken) 10px
+  );
+}
+.btn.unavailable .action-icon { color: var(--icon-dim); }
+
+/* Hover is a hint that a press will do something, so a control that cannot act
+   must not offer it. */
+.btn.unavailable:hover, .btn.failed:hover:not(:disabled) { background-color: var(--surface); }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn.action.running { animation: none; border-color: var(--text-strong); }
+  .action-busy { animation-duration: 2.4s; }
+}
+
+/* ---------- state polish ---------- */
+
+/* A toggled-on button and a primary button were the same crimson block, which
+   made "this is switched on" and "this is the main action here" indistinguish-
+   able. On is now visibly depressed, so the two differ in shape and not only
+   in colour. */
+.btn.on {
+  box-shadow: inset 0 1px 3px rgba(120, 13, 32, 0.45);
+  font-weight: 650;
+}
+.btn.on:hover:not(:disabled) { background: var(--crimson-deep); border-color: var(--crimson-deep); }
+.btn.on:disabled { background: var(--estop-off); border-color: var(--estop-off); color: var(--cream); }
+
+/* Hover on the switch itself, not just the label row, so the target reads. */
+.toggle:hover .track { border-color: var(--text-strong); }
+.toggle input:disabled ~ .track { opacity: 0.5; cursor: not-allowed; }
+
+/* The segmented control's selection carries a weight change as well as the
+   fill, for the same reason. */
+.seg-btn.active { box-shadow: inset 0 1px 2px rgba(120, 13, 32, 0.35); }
+
+@media (prefers-reduced-motion: reduce) {
+  .swatch:hover:not(:disabled) { transform: none; }
+  .btn:active:not(:disabled) { transform: none; }
+  .toggle .track, .toggle .track::after, .seg-btn, .btn { transition: none; }
+}
+
+/* Key caps on the drive dials. They sit inside the SVG so they scale with the
+   pad, and light up while that direction is actually being commanded - by the
+   keyboard, a gamepad, or the mouse. */
+.joy-key {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  fill: var(--faint);
+  pointer-events: none;
+  transition: fill 0.1s;
+}
+.joy-key.lit { fill: var(--text-strong); }
+@media (prefers-reduced-motion: reduce) {
+  .joy-key { transition: none; }
+}
+
+/* A description that immediately follows its section label belongs to it, so it
+   sits tight under the label instead of floating midway to the content. */
+.toggle + .slider-row { margin-top: 9px; }
+
+/* A switch sitting directly above a slider row needs air between them, or the
+   track and the slider read as one crowded control. */
+.toggle + .slider-row { margin-top: 10px; }
+
+/* ---------- readouts ---------- */
+
+/* Measurements are set in the mono face with tabular figures. The split is
+   what makes a number scan as a measurement rather than as prose - which only
+   works if it is kept to actual measurements. Words in a status pill, a fault
+   description or a hint over the lidar are language, and they stay in the
+   text face.
+   Tabular figures also stop live values jittering their own width as they
+   count - a 1 and a 7 occupy the same column, so nothing twitches at 20Hz. */
+.stat .value,
+.val,
+.kv dd,
+.reading-value,
+.chip b,
+.table td.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* The unit is not the measurement: keep it quiet so the figure carries. */
+.stat .value small, .val small { font-family: var(--sans); color: var(--muted); font-weight: 500; }
+
+/* ---------- rail ---------- */
+
+/* Connection on the left, the stop dead centre where a hand goes for it
+   without aiming, readings on the right. Three tracks rather than a flex row,
+   so the stop stays centred on the window no matter how wide the readings get. */
+.rail {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 9px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line-strong);
+}
+.rail-side { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rail-end { justify-content: flex-end; }
+.rail .pill, .rail .chip { flex: none; }
+
+/* Wide rather than tall: the stop reads as the biggest target on the surface
+   without costing the rail any height. */
+.rail .estop {
+  width: 210px;
+  padding: 6px 14px;
+  border-radius: 5px;
+  gap: 9px;
+}
+.rail .estop kbd {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--cream);
+  background: rgba(252, 236, 223, 0.16);
+  border: 1px solid rgba(252, 236, 223, 0.32);
+  border-radius: 3px;
+  padding: 0 5px;
+  line-height: 1.6;
+}
+.rail .estop:disabled kbd { background: rgba(252, 236, 223, 0.12); border-color: rgba(252, 236, 223, 0.22); }
+
+.rail-where {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+}
+
+/* A row of small gauges: quiet label above, the measurement below it. Hairline
+   separated so they read as one instrument rather than seven chips. */
+.rail-readings { display: flex; align-items: stretch; min-width: 0; }
+.reading {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 10px;
+  border-left: 1px solid var(--line);
+  min-width: 0;
+}
+.reading:last-child { padding-right: 2px; }
+.reading-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: var(--track);
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.reading-value {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-strong);
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.reading-value small { font-family: var(--sans); font-size: 9px; font-weight: 500; color: var(--muted); }
+.reading.warn .reading-value { color: var(--warn); }
+.reading.bad .reading-value { color: var(--danger); font-weight: 700; }
+
+/* Narrow windows drop the least load-bearing readings first, so the stop and
+   the link state keep their places. */
+@media (max-width: 1400px) { .rail-where { display: none; } }
+@media (max-width: 1240px) { .reading:nth-child(4), .reading:nth-child(5) { display: none; } }
+
+/* ---------- control shapes ---------- */
+
+/* Two ideas, taken deliberately. From Material: a control is a fully rounded
+   tonal shape, and its state is a wash over that shape rather than a change of
+   border. From Nothing: flat, no gradients, no shadows, and the accent is
+   spent rarely enough that it still means something when it appears.
+   Rounded rectangles stay for tiles, which are objects rather than actions. */
+:root {
+  --pill: 999px;
+  --tile: 12px;
+  --wash: rgba(158, 18, 44, 0.07);
+  --wash-strong: rgba(158, 18, 44, 0.13);
+}
+
+.btn {
+  border-radius: var(--pill);
+  background: var(--sunken);
+  border: 1px solid transparent;
+  box-shadow: none;
+  font-weight: 500;
+  padding: 7px 15px;
+  transition: background 0.13s ease, color 0.13s ease;
+}
+.btn:hover:not(:disabled) { background: var(--wash); border-color: transparent; color: var(--text-strong); }
+.btn:active:not(:disabled) { background: var(--wash-strong); transform: none; }
+.btn:disabled { background: var(--sunken); border-color: transparent; color: var(--faint); opacity: 0.6; }
+
+.btn.primary { background: var(--crimson); border-color: transparent; color: var(--cream); font-weight: 600; }
+.btn.primary:hover:not(:disabled) { background: var(--crimson-deep); color: var(--cream); }
+
+.btn.on { background: var(--crimson); border-color: transparent; color: var(--cream); box-shadow: none; }
+.btn.on:hover:not(:disabled) { background: var(--crimson-deep); border-color: transparent; }
+
+.btn.ghost { background: transparent; }
+.btn.ghost:hover:not(:disabled) { background: var(--wash); }
+
+.btn.danger { background: var(--sunken); border-color: transparent; color: var(--text-strong); }
+.btn.danger:hover:not(:disabled) { background: var(--crimson); color: var(--cream); }
+
+.btn.sm { padding: 5px 12px; font-size: 12px; }
+
+/* Rows stretch to the full width rather than leaving a ragged right edge. */
+.btn-row { gap: 6px; margin-bottom: 4px; }
+.btn-row > .btn { flex: 1 1 auto; justify-content: center; }
+.btn-row > .btn.sm:only-child { flex: 0 0 auto; }
+
+/* Tiles are objects, not actions: a rounded rectangle, not a pill. */
+.btn-grid .btn, .btn.action { border-radius: var(--tile); }
+.btn.action { background: var(--sunken); }
+.btn.action:hover:not(:disabled) { background: var(--wash); }
+.btn.action.on { background: var(--crimson); }
+
+/* ---------- segmented control ---------- */
+
+/* Material's segmented button: one rounded track, the selected segment filled.
+   Every segment stretches, so the control always fills its width. */
+.seg {
+  background: var(--sunken);
+  border-radius: var(--pill);
+  padding: 3px;
+  gap: 0;
+}
+.seg-btn {
+  border-radius: var(--pill);
+  padding: 6px 4px;
+  font-weight: 500;
+  box-shadow: none;
+}
+.seg-btn:hover:not(:disabled):not(.active) { background: var(--wash); color: var(--text-strong); }
+.seg-btn.active { background: var(--crimson); color: var(--cream); font-weight: 600; box-shadow: none; }
+
+/* ---------- pills and chips ---------- */
+
+/* Read-only state. Flat tonal fill, no border, mono label - a lamp, not a
+   button, and it should never look pressable. */
+/* A pill carries a word - "Offline", "2 faults" - so it stays in the text
+   face. Only the measurement inside a chip goes mono. */
+.pill, .chip {
+  border: none;
+  box-shadow: none;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 11px;
+  border-radius: var(--pill);
+}
+.pill-idle, .pill-closed { background: var(--sunken); color: var(--muted); }
+.pill-connecting, .pill-validating { background: rgba(192, 116, 20, 0.16); color: var(--warn); }
+.pill-connected { background: rgba(47, 143, 91, 0.16); color: var(--ok); }
+.pill-error { background: rgba(158, 18, 44, 0.13); color: var(--danger); }
+.chip { background: var(--sunken); color: var(--muted); }
+.chip.warn { background: rgba(192, 116, 20, 0.16); color: var(--warn); }
+
+/* ---------- inputs and switches ---------- */
+
+.input, select.input, textarea.input {
+  border-radius: var(--tile);
+  border-color: transparent;
+  background: var(--sunken);
+  box-shadow: none;
+}
+.input:focus-visible { background: var(--surface); }
+
+/* A wider track and a fuller thumb: the switch reads as a switch across the
+   room, which is the one control here that is genuinely binary. */
+.toggle .track { width: 40px; height: 22px; border-radius: var(--pill); border-color: transparent; background: var(--sunken); }
+.toggle .track::after { width: 16px; height: 16px; top: 3px; left: 3px; box-shadow: none; background: var(--surface); }
+.toggle.on .track::after { transform: translateX(18px); background: var(--cream); }
+.toggle:hover .track { border-color: transparent; background: var(--wash); }
+.toggle.on:hover .track { background: var(--crimson-deep); }
+
+.swatch { border-radius: 50%; }
+
+/* ---------- tabs ---------- */
+
+/* The selected tab is filled, not underlined. An underline is a second
+   language for "this one is chosen" when the rest of the console already says
+   it with a crimson fill - segments, toggles and live action tiles all do. */
+/* The strip stays flush edge to edge - it is the most space-efficient shape
+   for six labels - so only the indicator changes. */
+.tab { border-bottom: none; border-radius: 0; }
+.tab:hover:not(.active) { color: var(--text-strong); background: var(--wash); }
+.tab.active { color: var(--cream); background: var(--crimson); }
+.tab:focus-visible { outline: 2px solid var(--text-strong); outline-offset: -2px; }
+
+/* ---------- rail, properly ---------- */
+
+/* The rail is chrome, not content, so it sits on the sunken tone rather than
+   the panel surface - that is what stops it reading as a stray panel with
+   things floating in it. Everything inside is built from the vocabulary the
+   panels already use: a pill for state, mono for measurements, the eyebrow
+   treatment for labels. */
+.rail {
+  background: var(--sunken);
+  border-bottom: 1px solid var(--line-strong);
+  padding: 5px 10px;
+  gap: 14px;
+}
+
+/* Left and right are given the same treatment so the bar balances: a grouped
+   run of items on the panel surface, with the stop between them. */
+.rail-side > .pill { background: var(--surface); }
+.rail-where {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface);
+  border-radius: var(--pill);
+  padding: 4px 11px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rail .estop {
+  width: 200px;
+  padding: 7px 16px;
+  border-radius: var(--pill);
+}
+/* Disabled, it is still plainly the stop: same shape, same weight, drained of
+   urgency rather than turned into a ghost. */
+.rail .estop:disabled { background: var(--estop-off); color: var(--cream); opacity: 1; }
+
+/* One grouped readout rather than seven loose numbers. */
+.rail-readings {
+  background: var(--surface);
+  border-radius: var(--pill);
+  padding: 3px 6px;
+}
+.reading { padding: 0 11px; border-left: 1px solid var(--line); }
+.reading:first-child { border-left: none; }
+.reading:last-child { padding-right: 8px; }
+.reading:first-child { padding-left: 8px; }
+.reading-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: var(--track);
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.reading-value { font-size: 12px; color: var(--text-strong); }
+
+/* The word carries the button on its own; an icon beside it was saying the
+   same thing twice. The key cap sits hard against the right end and takes the
+   pill's own radius, so it reads as part of the shape rather than a label
+   dropped on top of it. */
+.rail .estop {
+  position: relative;
+  justify-content: flex-end;
+  padding: 4px;
+}
+/* Centred on the whole button, not on the space the key cap leaves behind -
+   the word is the control, so it sits on the control's own axis. */
+.rail .estop-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  pointer-events: none;
+}
+.rail .estop kbd {
+  flex: none;
+  border-radius: var(--pill);
+  padding: 4px 12px;
+}
+
+/* ---------- rail telemetry ---------- */
+
+/* The readings sit straight on the rail. Wrapping them in their own surface
+   capsule made a second container inside a bar that is already a container,
+   and it read as a widget stuck on rather than part of the strip. */
+.rail-readings { background: none; border-radius: 0; padding: 0; }
+.reading { padding: 0 12px; min-width: 0; gap: 0; }
+.reading:first-child { padding-left: 0; }
+.reading:last-child { padding-right: 0; border-right: none; }
+.reading-label { font-size: 9px; color: var(--faint); line-height: 1.35; }
+.reading-value { font-size: 12px; line-height: 1.3; }
+.reading-value small { font-size: 9px; }
+
+/* Back to a compact bar now the gauges are gone from it. */
+.rail { padding: 4px 10px; }
+.rail .estop { padding: 3px; }
+.rail .estop kbd { padding: 3px 11px; }
+
+/* An action the running service does not list. Still pressable - our id tables
+   are transcriptions, not the robot's manifest - but marked so a refusal is
+   expected rather than surprising. */
+.btn.untested { border: 1px dashed var(--line-strong); }
+.btn.untested:hover:not(:disabled) { border-style: dashed; border-color: var(--text-strong); }
+
+/* ---------- corrections ---------- */
+
+/* Two buttons in a row share the width evenly. With flex-basis auto they were
+   sized by their labels, so Scan sat wider than Connect for no reason. */
+.btn-row > .btn { flex: 1 1 0; }
+
+/* A running tile grew a 3px ring, which read as the tile changing size. It
+   pulses its own surface instead, so nothing moves. */
+@keyframes action-pulse {
+  50% { background: var(--wash-strong); }
+}
+.btn.action.running { box-shadow: none; }
+
+/* A group heading and its description are one thought. */
+.eyebrow + .note { margin-top: -4px; margin-bottom: 10px; }
+
+/* ---------- select ---------- */
+
+/* The browser's own select control ignored every token in here. This is the
+   same tonal pill the other inputs use, with a drawn chevron, so a dropdown
+   stops being the one native-looking thing on the surface. */
+select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% + 1px),
+    calc(100% - 13px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 34px;
+  cursor: pointer;
+}
+select.input:hover { background-color: var(--wash); }
+select.input:focus-visible { outline: 2px solid var(--text-strong); outline-offset: 1px; }
+/* The dropdown list itself is drawn by the OS; this is the most that can be
+   reached, and it keeps the open list from flashing white. */
+select.input option { background: var(--surface); color: var(--text); }

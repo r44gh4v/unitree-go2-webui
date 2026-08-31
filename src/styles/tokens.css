@@ -1,0 +1,71 @@
+/* Colour, type and the variables everything else reads.
+ *
+ * Part of the stylesheet, split at the section markers it already carried.
+ * Import order in styles.css is the cascade order and is load-bearing: the
+ * later parts override the earlier ones on purpose. */
+
+/* unitree_go2_webui - light bakery-warm operator interface.
+   Crimson carries text and intent, cream is the ground, salmon is the accent. */
+
+:root {
+  --crimson: #9e122c;
+  --crimson-deep: #780d20;
+  --cream: #fcecdf;
+  --salmon: #f99d90;
+
+  --bg: #fcecdf;
+  --surface: #fffaf4;
+  --surface-2: #fdf3ea;
+  --sunken: #f7e4d6;
+
+  --line: #f0d6c6;
+  --line-strong: #e3bfab;
+
+  --text: #3d1019;
+  --text-strong: #9e122c;
+  --muted: #7d544e;
+  --faint: #9c6f67;
+
+  --accent: #9e122c;
+  --accent-soft: #f99d90;
+
+  --ok: #2f8f5b;
+  --warn: #c07414;
+  --danger: #9e122c;
+
+  /* derived from the palette above; kept named so a future theme can restate them */
+  --estop-off: #b97a80;
+  --icon-dim: #c9968f;
+  --spinner-track: rgba(158, 18, 44, 0.22);
+
+  /* One warm-technical family for both roles; the system stack takes over
+     cleanly when there is no internet (robot hotspot mode). Mono is reserved
+     for protocol text, code, and keys - numbers use tabular figures instead. */
+  --sans: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  /* The only letter-spacing in the interface: uppercase micro-labels need a
+     little air; everything else keeps the font's own metrics. */
+  --track: 0.08em;
+  --radius: 8px;
+  --shadow: 0 1px 2px rgba(120, 13, 32, 0.06);
+}
+
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+::selection { background: var(--salmon); color: var(--crimson-deep); }
+
+button { font: inherit; color: inherit; }

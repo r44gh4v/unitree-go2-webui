@@ -1,0 +1,217 @@
+/* The window: app frame, resizable split, stop strip, panels, connection banner.
+ *
+ * Part of the stylesheet, split at the section markers it already carried.
+ * Import order in styles.css is the cascade order and is load-bearing: the
+ * later parts override the earlier ones on purpose. */
+
+/* ---------- app frame ---------- */
+
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+}
+
+/* The workspace floats its panels on the page ground, VS Code style: each
+   major column is a rounded card, and the gaps between them are the ground
+   itself doubling as the drag handles. */
+.main { display: flex; min-height: 0; min-width: 0; padding: 7px; background: var(--bg); }
+
+/* ---------- resizable split ---------- */
+
+.pane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(120, 13, 32, 0.07);
+}
+/* A pane that only holds a nested split is plumbing, not a card - the cards
+   are the nested split's own panes. */
+.pane:has(> .split) {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+/* The direct content of a pane fills it, so its own background covers the pane. */
+.pane > .column { flex: 1; min-height: 0; }
+
+/* Gutters are invisible gaps; a salmon line appears along them on hover or
+   while dragging, the way the modern VS Code handles read. */
+.gutter {
+  flex: none;
+  background: transparent;
+  position: relative;
+}
+.gutter.vertical { width: 7px; cursor: col-resize; }
+.gutter.horizontal { height: 7px; cursor: row-resize; }
+/* widen the grab area without widening the gap */
+.gutter::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+}
+.gutter.vertical::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 2.5px;
+  width: 2px;
+  height: 26px;
+  margin-top: -13px;
+  border-radius: 2px;
+  background: var(--line-strong);
+  transition: background 0.12s, height 0.12s;
+}
+.gutter.horizontal::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 2.5px;
+  height: 2px;
+  width: 26px;
+  margin-left: -13px;
+  border-radius: 2px;
+  background: var(--line-strong);
+  transition: background 0.12s, width 0.12s;
+}
+.gutter.vertical.dragging::before {
+  background: var(--salmon);
+  height: calc(100% - 10px);
+  margin-top: 0;
+  top: 5px;
+}
+.gutter.vertical:focus-visible::before { background: var(--salmon); height: calc(100% - 10px); margin-top: 0; top: 5px; }
+.gutter.horizontal:focus-visible::before { background: var(--salmon); width: calc(100% - 10px); margin-left: 0; left: 5px; }
+.gutter.horizontal.dragging::before {
+  background: var(--salmon);
+  width: calc(100% - 10px);
+  margin-left: 0;
+  left: 5px;
+}
+
+/* ---------- stop strip ---------- */
+
+/* Pinned above the drive controls: never scrolls, never covered. */
+.stopbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 3px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.chip b { color: var(--text-strong); font-weight: 650; }
+.chip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.5; flex: none; }
+.chip.warn .dot { background: var(--warn); opacity: 1; }
+
+@keyframes pulse { 50% { opacity: 0.3; } }
+
+.estop {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: var(--cream);
+  background: var(--crimson);
+  border: none;
+  border-radius: 6px;
+  padding: 9px 12px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(120, 13, 32, 0.3);
+}
+.estop:hover:not(:disabled) { background: var(--crimson-deep); }
+.estop:active:not(:disabled) { transform: translateY(1px); }
+/* Inert until there is something to stop, but still unmistakably the stop
+   control: same block, drained of urgency, never a hollow outline. */
+.estop:disabled {
+  background: var(--estop-off);
+  color: var(--cream);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ---------- panels ---------- */
+
+/* Panes scroll vertically only. A stray horizontal scroll (trackpad drift on
+   an element a few px too wide) used to shift a whole tab's content under the
+   pane edge and clip it. */
+.scroll { overflow-y: auto; overflow-x: hidden; min-height: 0; flex: 1; }
+
+.column { background: var(--surface); }
+
+.section { border-bottom: 1px solid var(--line); padding: 10px 12px; }
+.section:last-child { border-bottom: none; }
+
+/* Section labels are wayfinding, not calls to action: warm brown, so crimson
+   stays reserved for STOP, primary buttons, and live state - which is what
+   gives the column its hierarchy. */
+.eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: var(--track);
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 7px;
+}
+.icon-eyebrow { display: flex; align-items: center; gap: 6px; }
+.icon-eyebrow svg { color: var(--accent); }
+
+/* ---------- connection status banner ---------- */
+
+.conn-status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 2px 0;
+}
+
+/* The state reads as the shared colour pill (see .pill), no dot or edge line. */
+.conn-status .pill { flex: none; }
+.conn-status .pill svg { width: 12px; height: 12px; }
+
+.conn-text { flex: 1; min-width: 0; }
+.conn-sub {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.conn-error .conn-sub { color: var(--text-strong); }
+
+.spinner.sm {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+  margin: 0;
+  flex: none;
+  border-color: var(--spinner-track);
+  border-top-color: var(--text-strong);
+}
