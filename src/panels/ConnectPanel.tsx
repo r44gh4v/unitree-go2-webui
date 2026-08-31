@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { useCloudSession } from '../hooks/useCloudSession'
+import { useRemembered } from '../hooks/useRemembered'
 import { useRobot } from '../state/RobotContext'
 import { SWITCHABLE_MODES } from '../lib/constants'
 import type { CloudRobot, ConnectMethod, DiscoveredRobot } from '../lib/types'
@@ -12,11 +14,7 @@ const STORE = {
   key: 'go2.aesKey',
   email: 'go2.email',
   region: 'go2.region',
-  cloudSession: 'go2.cloudSession',
 }
-
-/** How long a saved cloud sign-in is trusted before asking again. */
-const CLOUD_SESSION_MS = 24 * 60 * 60 * 1000
 
 /** What each motion service is called in plain words. */
 const SERVICE_LABEL: Record<string, string> = {
@@ -59,60 +57,28 @@ export default function ConnectPanel() {
     void probeServer().then((i) => setServerless(i.serverless))
   }, [])
 
-  const [method, setMethod] = useState<ConnectMethod>(() => {
-    // Guard against a method saved by an older build (e.g. a removed one).
-    const saved = localStorage.getItem(STORE.method) as ConnectMethod
-    if (lastServerInfo()?.serverless) return 'cloud'
-    return METHODS.some((m) => m.value === saved) ? saved : 'ip'
-  })
+  const [rememberedMethod, setMethod] = useRemembered(STORE.method, 'ip')
+  // A build that removes a method must not leave the panel stuck on it, and a
+  // cloud deployment can only ever use the one.
+  const method: ConnectMethod = serverless
+    ? 'cloud'
+    : METHODS.some((m) => m.value === rememberedMethod)
+      ? (rememberedMethod as ConnectMethod)
+      : 'ip'
 
-  // If the probe lands after mount and this is a cloud deployment, move off a
-  // method that cannot work here.
-  useEffect(() => {
-    if (serverless && method !== 'cloud') setMethod('cloud')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverless])
-
-  const [ip, setIp] = useState(() => localStorage.getItem(STORE.ip) ?? '192.168.12.1')
-  const [serial, setSerial] = useState(() => localStorage.getItem(STORE.serial) ?? '')
-  const [aesKey, setAesKey] = useState(() => localStorage.getItem(STORE.key) ?? '')
+  const [ip, setIp] = useRemembered(STORE.ip, '192.168.12.1')
+  const [serial, setSerial] = useRemembered(STORE.serial, '')
+  const [aesKey, setAesKey] = useRemembered(STORE.key, '')
   const [showKey, setShowKey] = useState(false)
 
-  const [email, setEmail] = useState(() => localStorage.getItem(STORE.email) ?? '')
+  const [email, setEmail] = useRemembered(STORE.email, '')
   const [password, setPassword] = useState('')
-  const [region, setRegion] = useState(() => localStorage.getItem(STORE.region) ?? 'global')
+  const [region, setRegion] = useRemembered(STORE.region, 'global')
   // A sign-in is remembered for a day so reopening the console doesn't ask
   // again; Sign out (or an expired save) drops back to the login form.
-  const [token, setToken] = useState('')
-  const [cloudRobots, setCloudRobots] = useState<CloudRobot[] | null>(null)
+  const { token, robots: cloudRobots, signingIn, signIn, signOut } = useCloudSession()
   const [pickedSerial, setPickedSerial] = useState('')
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORE.cloudSession)
-      if (!raw) return
-      const saved = JSON.parse(raw) as { token?: string; robots?: CloudRobot[]; at?: number }
-      if (!saved.token || !saved.robots?.length || Date.now() - (saved.at ?? 0) > CLOUD_SESSION_MS) {
-        localStorage.removeItem(STORE.cloudSession)
-        return
-      }
-      setToken(saved.token)
-      setCloudRobots(saved.robots)
-      setPickedSerial(saved.robots[0].sn)
-      if (saved.robots[0].aesKey) setAesKey((k) => k || saved.robots![0].aesKey)
-    } catch {
-      /* an unreadable save is just ignored */
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const signOut = () => {
-    localStorage.removeItem(STORE.cloudSession)
-    setToken('')
-    setCloudRobots(null)
-    setPickedSerial('')
-  }
-  const [signingIn, setSigningIn] = useState(false)
 
   const [scanning, setScanning] = useState(false)
   const [found, setFound] = useState<DiscoveredRobot[]>([])
@@ -135,7 +101,6 @@ export default function ConnectPanel() {
     }
   }, [connected, refreshMotionMode])
 
-  useEffect(() => localStorage.setItem(STORE.method, method), [method])
 
   /** Ask the server which robots answer on its own network. */
   const discover = async (): Promise<DiscoveredRobot[]> => {
@@ -149,11 +114,6 @@ export default function ConnectPanel() {
     setBusy(true)
     setNote(null)
     try {
-      localStorage.setItem(STORE.ip, ip.trim())
-      localStorage.setItem(STORE.serial, serial.trim())
-      localStorage.setItem(STORE.region, region)
-      if (aesKey.trim()) localStorage.setItem(STORE.key, aesKey.trim())
-
       // LAN is the no-typing case: find whatever is on this router, then talk
       // to it by address. The transports below it never see a 'lan' method.
       let targetIp = ip.trim()
@@ -201,37 +161,20 @@ export default function ConnectPanel() {
   }
 
   const doSignIn = async () => {
-    setSigningIn(true)
     setNote(null)
     try {
-      localStorage.setItem(STORE.email, email.trim())
-      const res = await fetch('/api/cloud/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password, region }),
-      })
-      const body = (await res.json()) as { token?: string; robots?: CloudRobot[]; error?: string }
-      if (!res.ok || body.error) throw new Error(body.error ?? `HTTP ${res.status}`)
-      setToken(body.token ?? '')
-      setCloudRobots(body.robots ?? [])
+      const robots = await signIn(email.trim(), password, region)
       setPassword('')
-      if (body.robots?.length) {
-        setPickedSerial(body.robots[0].sn)
-        if (body.robots[0].aesKey && !aesKey) setAesKey(body.robots[0].aesKey)
-        try {
-          localStorage.setItem(STORE.cloudSession, JSON.stringify({ token: body.token, robots: body.robots, at: Date.now() }))
-        } catch {
-          /* storage full or blocked; the session just won't survive a reload */
-        }
-        log(`Signed in. ${body.robots.length} robot(s) on this account.`)
-      } else {
+      if (!robots.length) {
         setNote('Signed in, but no robots are bound to this account.')
+        return
       }
+      setPickedSerial(robots[0].sn)
+      // The account carries the device key, so the operator does not have to.
+      if (robots[0].aesKey && !aesKey) setAesKey(robots[0].aesKey)
+      log(`Signed in. ${robots.length} robot(s) on this account.`)
     } catch (e) {
       setNote(`Sign in failed: ${(e as Error).message}`)
-      setCloudRobots(null)
-    } finally {
-      setSigningIn(false)
     }
   }
 
@@ -414,7 +357,7 @@ export default function ConnectPanel() {
                   style={{ marginTop: 4 }}
                   disabled={locked}
                   title="Forget this sign-in on this browser"
-                  onClick={signOut}
+                  onClick={() => { signOut(); setPickedSerial('') }}
                 >
                   Sign out
                 </button>
