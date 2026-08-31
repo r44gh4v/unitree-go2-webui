@@ -12,6 +12,7 @@ import { lastServerInfo } from './serverInfo'
 import { decodeVoxelMesh, type VoxelMesh } from './voxel'
 import { ChunkAssembler, readFrame, type ChunkInfo } from './frames'
 import { nextRequestId } from './correlation'
+import { parseMaybeJson } from './wireJson'
 import { exchangeOffer, planRoute, type ConnectOptions, type Route, type SignallingDeps } from './signalling'
 import { FileTransfer } from './fileTransfer'
 
@@ -54,13 +55,10 @@ export function unwrapResponse<T = unknown>(res: ApiResponse): T {
   const code = res.data?.header?.status?.code
   if (code !== undefined && code !== 0) throw new Error(describeStatus(code))
   const raw = res.data?.data
+  // Absence stays undefined here rather than null: callers of this one check
+  // for a missing reply, and the two have different meanings on an api call.
   if (raw === undefined || raw === '') return undefined as T
-  if (typeof raw !== 'string') return raw as T
-  try {
-    return JSON.parse(raw) as T
-  } catch {
-    return raw as unknown as T
-  }
+  return parseMaybeJson<T>(raw) as T
 }
 
 const HEARTBEAT_MS = 2000

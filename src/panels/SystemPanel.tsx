@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { parseMaybeJson } from '../lib/wireJson'
 import { useRobot } from '../state/RobotContext'
 import { unwrapResponse } from '../lib/go2'
 import {
@@ -6,6 +7,9 @@ import {
   SPORT_CMD, SPORT_CMD_MCF, TOPICS, UWB_API, VUI_API,
 } from '../lib/constants'
 import { TerminalIcon } from '../components/Icons'
+
+/** How many distinct self-test results are kept. */
+const SELF_TEST_LIMIT = 20
 
 interface ServiceEntry {
   name: string
@@ -114,19 +118,6 @@ const SETTINGS: SettingSpec[] = [
   },
 ]
 
-/** Some state topics arrive as a JSON string inside the message rather than an object. */
-function decodeMaybeString<T>(value: unknown): T | null {
-  if (value == null) return null
-  if (typeof value === 'string') {
-    try {
-      return JSON.parse(value) as T
-    } catch {
-      return null
-    }
-  }
-  return value as T
-}
-
 /** Services, firmware details, and the on-board script runner. */
 export default function SystemPanel() {
   const { conn, connState, ip, motion, log } = useRobot()
@@ -141,6 +132,8 @@ export default function SystemPanel() {
   const [trafficError, setTrafficError] = useState<string | null>(null)
   const [multiple, setMultiple] = useState<MultipleState | null>(null)
   const [selfTest, setSelfTest] = useState<unknown[]>([])
+  /** What has already been reported, so a repeat is not listed twice. */
+  const seenSelfTest = useRef(new Set<string>())
   const [lidarState, setLidarState] = useState<unknown>(null)
 
   const [settings, setSettings] = useState<Record<string, boolean | undefined>>({})
@@ -155,24 +148,28 @@ export default function SystemPanel() {
       setServices(null)
       setMultiple(null)
       setSelfTest([])
+      seenSelfTest.current.clear()
       setLidarState(null)
       return
     }
 
     const unsubs = [
       conn.subscribe(TOPICS.SERVICE_STATE, (d) => {
-        const parsed = decodeMaybeString<ServiceEntry[]>(d)
+        const parsed = parseMaybeJson<ServiceEntry[]>(d)
         if (Array.isArray(parsed)) setServices(parsed)
       }),
       conn.subscribe(TOPICS.MULTIPLE_STATE, (d) => {
-        const parsed = decodeMaybeString<MultipleState>(d)
+        const parsed = parseMaybeJson<MultipleState>(d)
         if (parsed) setMultiple(parsed)
       }),
       conn.subscribe(TOPICS.SELF_TEST, (d) => {
-        setSelfTest((prev) => {
-          const text = JSON.stringify(d)
-          return prev.some((p) => JSON.stringify(p) === text) ? prev : [...prev, d].slice(-20)
-        })
+        // The robot repeats each self-test result while it holds. Comparing
+        // against a set of what has been seen keeps that to one hash per
+        // message, rather than re-serialising every kept entry each time.
+        const text = JSON.stringify(d)
+        if (seenSelfTest.current.has(text)) return
+        seenSelfTest.current.add(text)
+        setSelfTest((prev) => [...prev, d].slice(-SELF_TEST_LIMIT))
       }),
       conn.subscribe(TOPICS.ULIDAR_STATE, setLidarState),
     ]
