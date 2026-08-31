@@ -12,7 +12,8 @@ import {
 } from '../lib/constants'
 import type { LowState, RobotError, SportModeState } from '../lib/types'
 import { ReconnectPolicy } from '../lib/reconnect'
-import { MessageRate } from '../lib/messageRate'
+import { useTelemetryFeed } from '../hooks/useTelemetryFeed'
+import { useLinkState } from '../hooks/useLinkState'
 import { sendsToggleData } from '../lib/actionKinds'
 import { useSensing, type Sensing } from '../hooks/useSensing'
 
@@ -143,16 +144,14 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   if (!connRef.current) connRef.current = new Go2Connection()
   const conn = connRef.current
 
-  const [connState, setConnState] = useState<ConnState>('idle')
-  const [connError, setConnError] = useState<string | null>(null)
-  const [ip, setIp] = useState('')
-  const [lowState, setLowState] = useState<LowState | null>(null)
-  const [sportState, setSportState] = useState<SportModeState | null>(null)
-  const [traffic, setTraffic] = useState<TrafficEntry[]>([])
-  const [robotErrors, setRobotErrors] = useState<RobotError[]>([])
-  const [stream, setStream] = useState<MediaStream | null>(null)
-  const [videoOn, setVideoOnState] = useState(false)
-  const [audioOn, setAudioOnState] = useState(false)
+  // What the link is doing, and what the robot is complaining about.
+  const linkState = useLinkState(conn)
+  const { connState, connError, ip, stream, videoOn, audioOn } = linkState
+
+  // High-rate readings and the traffic log, flushed at a rate React survives.
+  const feed = useTelemetryFeed(conn)
+  const { lowState, sportState, traffic, log } = feed
+
   const [posing, setPosing] = useState(false)
   /**
    * When the operator last changed pose deliberately. Telemetry is the
@@ -168,77 +167,6 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   }, [])
   const [motionMode, setMotionMode] = useState<MotionMode>('normal')
   const [reportedMode, setReportedMode] = useState<string | null>(null)
-  const [linkStats, setLinkStats] = useState({ messages: 0, bytes: 0, topics: 0, rate: 0 })
-  // Messages per second is the only reading that tells a live robot from a
-  // frozen one; the rest are just the last values that arrived.
-  const rate = useRef(new MessageRate()).current
-
-  // High-rate telemetry accumulates in refs; a slow timer flushes it into state
-  // so React re-renders at a readable rate instead of hundreds of times a second.
-  const pendingLow = useRef<LowState | null>(null)
-  const pendingSport = useRef<SportModeState | null>(null)
-  const pendingTraffic = useRef<TrafficEntry[]>([])
-
-  useEffect(() => {
-    const onState = (e: Event) => {
-      const d = (e as CustomEvent).detail as { state: ConnState; error?: string }
-      setConnState(d.state)
-      setConnError(d.error ?? null)
-      if (d.state === 'connected') {
-        setIp(conn.ip)
-        // Seeing through the robot is the point of opening the console, so the
-        // camera comes up with the link rather than waiting to be asked. Audio
-        // stays off: it is a live microphone in someone's room.
-        conn.setVideo(true)
-        setVideoOnState(true)
-      }
-      if (d.state === 'closed' || d.state === 'error') {
-        setVideoOnState(false)
-        setAudioOnState(false)
-        setPosing(false)
-      }
-    }
-    const onTraffic = (e: Event) => {
-      pendingTraffic.current.push((e as CustomEvent).detail as TrafficEntry)
-    }
-    const onTrack = (e: Event) => {
-      setStream((e as CustomEvent).detail.stream as MediaStream)
-    }
-    const onRobotError = (e: Event) => {
-      const d = (e as CustomEvent).detail as { type: string; data: unknown }
-      const rows = Array.isArray(d.data) && Array.isArray(d.data[0]) ? (d.data as number[][]) : [d.data as number[]]
-      const entries: RobotError[] = []
-      for (const row of rows) {
-        if (!Array.isArray(row) || row.length < 3) continue
-        const [ts, source, code] = row
-        const { source: srcText, text } = describeError(source, code)
-        entries.push({
-          ts: ts * 1000,
-          source: srcText,
-          text,
-          cleared: d.type === DATA_CHANNEL_TYPE.RM_ERROR,
-        })
-      }
-      if (entries.length) setRobotErrors((prev) => [...entries, ...prev].slice(0, 80))
-    }
-    conn.addEventListener('state', onState)
-    conn.addEventListener('traffic', onTraffic)
-    conn.addEventListener('track', onTrack)
-    conn.addEventListener('robot-error', onRobotError)
-    return () => {
-      conn.removeEventListener('state', onState)
-      conn.removeEventListener('traffic', onTraffic)
-      conn.removeEventListener('track', onTrack)
-      conn.removeEventListener('robot-error', onRobotError)
-    }
-  }, [conn])
-
-  const log = useCallback(
-    (text: string) => {
-      pendingTraffic.current.push({ dir: 'sys', text, ts: Date.now() })
-    },
-    [],
-  )
 
   const sensing = useSensing(conn, connState, log)
 
@@ -259,37 +187,6 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     setPosing((was) => (was === robotIsPosing ? was : robotIsPosing))
   }, [sportState?.mode])
 
-  // Core telemetry stays subscribed for the life of the app.
-  useEffect(() => {
-    const unsubs = [
-      conn.subscribe(TOPICS.LOW_STATE, (d) => (pendingLow.current = d as LowState)),
-      conn.subscribe(TOPICS.LF_SPORT_MOD_STATE, (d) => (pendingSport.current = d as SportModeState)),
-      conn.subscribe(TOPICS.SPORT_MOD_STATE, (d) => (pendingSport.current = d as SportModeState)),
-    ]
-    return () => unsubs.forEach((u) => u())
-  }, [conn])
-
-  useEffect(() => {
-    const t = setInterval(() => {
-      if (pendingLow.current) {
-        setLowState(pendingLow.current)
-        pendingLow.current = null
-      }
-      if (pendingSport.current) {
-        setSportState(pendingSport.current)
-        pendingSport.current = null
-      }
-      if (pendingTraffic.current.length) {
-        const chunk = pendingTraffic.current
-        pendingTraffic.current = []
-        setTraffic((prev) => [...prev, ...chunk].slice(-TRAFFIC_LIMIT))
-      }
-      const s = conn.stats
-      setLinkStats({ ...s, rate: Math.round(rate.sample(s.messages, performance.now())) })
-    }, UI_FLUSH_MS)
-    return () => clearInterval(t)
-  }, [conn])
-
   const lastConnect = useRef<ConnectOptions | null>(null)
   /**
    * Everything about whether a dropped link should come back lives behind this,
@@ -304,12 +201,13 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     async (opts: ConnectOptions) => {
       lastConnect.current = opts
       setCanRetry(true)
-      setConnError(null)
-      setRobotErrors([])
-      rate.reset()
+      // connState arrives as 'connecting' immediately, which clears connError
+      // on its own - the reset that used to sit here was doing it twice.
+      linkState.clearFaults()
+      feed.resetRate()
       await conn.connect(opts)
     },
-    [conn],
+    [conn, linkState, feed],
   )
 
   const connect = useCallback(
@@ -328,11 +226,9 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   const disconnect = useCallback(() => {
     recovery.abandoned()
     conn.disconnect()
-    setStream(null)
-    setLowState(null)
-    setSportState(null)
+    feed.clearReadings()
     setReportedMode(null)
-  }, [conn, recovery])
+  }, [conn, recovery, feed])
 
   /**
    * Closing the tab, navigating away, or shutting the lid is a disconnect the
@@ -386,15 +282,15 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   const setVideo = useCallback(
     (on: boolean) => {
       conn.setVideo(on)
-      setVideoOnState(on)
+      linkState.setVideoOn(on)
     },
-    [conn],
+    [conn, linkState],
   )
 
   const setAudio = useCallback(
     (on: boolean) => {
       conn.setAudio(on)
-      setAudioOnState(on)
+      linkState.setAudioOn(on)
     },
     [conn],
   )
@@ -491,16 +387,15 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     [conn, log],
   )
 
-  const clearTraffic = useCallback(() => setTraffic([]), [])
-  const clearErrors = useCallback(() => setRobotErrors([]), [])
+  // Clearing either list belongs to whichever hook holds it.
 
   // Each group is memoised on its own dependencies, so a change in one does not
   // rebuild the others. The top-level object then only changes when a group
   // does, which is what keeps a panel that reads `link` still while `motion`
   // is busy.
   const link = useMemo<LinkApi>(
-    () => ({ stats: linkStats, connect, retry: canRetry ? retry : null, disconnect }),
-    [linkStats, connect, canRetry, retry, disconnect],
+    () => ({ stats: feed.stats, connect, retry: canRetry ? retry : null, disconnect }),
+    [feed.stats, connect, canRetry, retry, disconnect],
   )
 
   const motion = useMemo<MotionApi>(
@@ -530,8 +425,8 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   )
 
   const diagnostics = useMemo<DiagnosticsApi>(
-    () => ({ traffic, errors: robotErrors, clearTraffic, clearErrors }),
-    [traffic, robotErrors, clearTraffic, clearErrors],
+    () => ({ traffic, errors: linkState.faults, clearTraffic: feed.clearTraffic, clearErrors: linkState.clearFaults }),
+    [traffic, linkState, feed],
   )
 
   const api = useMemo<RobotApi>(

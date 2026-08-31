@@ -9,6 +9,10 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    // Lets a module import a sibling by its real filename. Node needs the
+    // extension to load a .ts file straight from source, which is how the
+    // tests exercise these modules without a build step.
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "strict": true,
     "noUnusedLocals": false,
