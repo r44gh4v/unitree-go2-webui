@@ -10,6 +10,7 @@ import { md5 } from 'js-md5'
 import { API_STATUS_CODES, DATA_CHANNEL_TYPE, SPORT_CMD, TOPICS } from './constants'
 import { lastServerInfo } from './serverInfo'
 import { decodeVoxelMesh, type VoxelMesh } from './voxel'
+import { ChunkAssembler, readFrame, type ChunkInfo } from './frames'
 
 export type ConnState = 'idle' | 'connecting' | 'validating' | 'connected' | 'error' | 'closed'
 
@@ -141,24 +142,6 @@ interface FileResponse {
   data?: string
 }
 
-/** Present on binary frames the robot had to split up. */
-interface ChunkInfo {
-  enable_chunking?: boolean
-  chunk_index: number
-  total_chunk_num: number
-}
-
-function concatChunks(parts: Uint8Array[]): Uint8Array {
-  const total = parts.reduce((n, p) => n + p.length, 0)
-  const out = new Uint8Array(total)
-  let at = 0
-  for (const p of parts) {
-    out.set(p, at)
-    at += p.length
-  }
-  return out
-}
-
 export interface ConnectOptions {
   /** how to reach the robot; defaults to a direct address */
   method?: 'ip' | 'serial' | 'ap' | 'cloud'
@@ -207,8 +190,8 @@ export class Go2Connection extends EventTarget {
   private pending = new Map<number, Pending>()
   private subs = new Map<string, Set<(data: unknown, message: ApiResponse) => void>>()
   private live = new Set<string>()
-  /** partial binary payloads, keyed by request id or topic */
-  private chunks = new Map<string | number, Uint8Array[]>()
+  /** Reassembles payloads that arrive split across frames. */
+  private chunks = new ChunkAssembler()
   /** in-flight file downloads (SLAM map), keyed by req_uuid */
   private fileDownloads = new Map<string, FileDownload>()
   /** per-chunk upload acks, keyed by req_uuid */
@@ -597,72 +580,46 @@ export class Go2Connection extends EventTarget {
    * lidar variant marked by a (2, 0) uint16 pair (uint32 LE length, JSON at 8).
    */
   private handleBinary(buf: ArrayBuffer) {
-    try {
-      const view = new DataView(buf)
-      let jsonBytes: Uint8Array
-      let payload: ArrayBuffer
-
-      if (view.getUint16(0, true) === 2 && view.getUint16(2, true) === 0) {
-        // Past the marker the length is a uint32, but the JSON still starts at
-        // byte 8 - bytes 4 to 8 are reserved. Do not "simplify" this to 4 + len.
-        const inner = buf.slice(4)
-        const iv = new DataView(inner)
-        const len = iv.getUint32(0, true)
-        jsonBytes = new Uint8Array(inner, 8, len)
-        payload = inner.slice(8 + len)
-      } else {
-        const len = view.getUint16(0, true)
-        jsonBytes = new Uint8Array(buf, 4, len)
-        payload = buf.slice(4 + len)
-      }
-
-      const header = JSON.parse(new TextDecoder().decode(jsonBytes)) as ApiResponse
-      const topic = header.topic ?? ''
-
-      // Large binary replies (a camera still, a map file) arrive split across
-      // frames. Buffer them until the last chunk, then deliver the whole thing.
-      const chunkInfo = (header.data as { content_info?: ChunkInfo } | undefined)?.content_info
-      if (chunkInfo?.enable_chunking) {
-        const key = header.data?.header?.identity?.id ?? topic
-        const parts = this.chunks.get(key) ?? []
-        parts.push(new Uint8Array(payload))
-        if (chunkInfo.chunk_index < chunkInfo.total_chunk_num) {
-          this.chunks.set(key, parts)
-          return
-        }
-        this.chunks.delete(key)
-        payload = concatChunks(parts).buffer as ArrayBuffer
-      }
-
-      if (topic.includes('utlidar') && header.data) {
-        const meta = header.data as unknown as {
-          origin: number[]
-          resolution: number
-          width: number[]
-          src_size: number
-        }
-        try {
-          const mesh = decodeVoxelMesh(new Uint8Array(payload), meta)
-          this.dispatchTopic(topic, mesh, header)
-          this.emit('voxel', mesh)
-        } catch (e) {
-          this.traffic('sys', `lidar decode failed: ${String((e as Error).message)}`)
-        }
-      } else {
-        // A binary reply can also be the answer to a pending request, which is
-        // how a camera still comes back.
-        const id = header.data?.header?.identity?.id
-        if (typeof id === 'number' && this.pending.has(id)) {
-          const p = this.pending.get(id)!
-          this.pending.delete(id)
-          clearTimeout(p.timer)
-          p.resolve({ ...header, data: { ...header.data, binary: payload } })
-        }
-        if (topic) this.dispatchTopic(topic, { ...(header.data as object), binary: payload }, header)
-      }
-    } catch (e) {
-      this.traffic('sys', `binary frame parse failed: ${String((e as Error).message)}`)
+    const frame = readFrame(buf)
+    if (!frame) {
+      this.traffic('sys', `discarded a binary frame of ${buf.byteLength} bytes that did not parse`)
+      return
     }
+    const header = frame.header as ApiResponse
+    const topic = header.topic ?? ''
+
+    // A large reply - a camera still, a map file - arrives split across frames.
+    const key = header.data?.header?.identity?.id ?? topic
+    const payload = this.chunks.accept(key, (header.data as { content_info?: ChunkInfo })?.content_info, frame.payload)
+    if (payload === null) return
+
+    if (topic.includes('utlidar') && header.data) {
+      const meta = header.data as unknown as {
+        origin: number[]
+        resolution: number
+        width: number[]
+        src_size: number
+      }
+      try {
+        const mesh = decodeVoxelMesh(new Uint8Array(payload), meta)
+        this.dispatchTopic(topic, mesh, header)
+        this.emit('voxel', mesh)
+      } catch (e) {
+        this.traffic('sys', `lidar decode failed: ${String((e as Error).message)}`)
+      }
+      return
+    }
+
+    // A binary reply can also be the answer to a pending request, which is how
+    // a camera still comes back.
+    const id = header.data?.header?.identity?.id
+    if (typeof id === 'number' && this.pending.has(id)) {
+      const p = this.pending.get(id)!
+      this.pending.delete(id)
+      clearTimeout(p.timer)
+      p.resolve({ ...header, data: { ...header.data, binary: payload } })
+    }
+    if (topic) this.dispatchTopic(topic, { ...(header.data as object), binary: payload }, header)
   }
 
   /**
