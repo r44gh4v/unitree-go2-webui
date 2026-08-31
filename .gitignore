@@ -7,6 +7,5 @@ dist/
 .DS_Store
 Thumbs.db
 unitree_ui/
-# Browser-automation scratch output, not part of the project.
 .playwright-mcp/
 test/
