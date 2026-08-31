@@ -17,7 +17,17 @@ export interface MicRecorder {
   clip: File | null
   error: string | null
   start: () => Promise<void>
-  stop: () => void
+  /**
+   * Stop, and resolve with the clip once the recorder has assembled it.
+   *
+   * The clip does not exist when stop() is called - MediaRecorder assembles it
+   * on its own onstop, afterwards. A caller that needs the recording therefore
+   * had to watch for it appearing in state, which meant coordinating a flag
+   * with a render. Awaiting it here is the same wait, said once.
+   *
+   * Resolves null when there was nothing to record or the clip was too short.
+   */
+  stop: () => Promise<File | null>
   discard: () => void
 }
 
@@ -31,8 +41,17 @@ export function useMicRecorder(): MicRecorder {
   const chunks = useRef<Blob[]>([])
   const stream = useRef<MediaStream | null>(null)
   const startedAt = useRef(0)
+  /** Whoever is awaiting stop(), resolved from the recorder's own onstop. */
+  const awaiting = useRef<((clip: File | null) => void) | null>(null)
   const tick = useRef<ReturnType<typeof setInterval> | null>(null)
   const cap = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  /** Hand a waiting caller its answer, once. */
+  const settle = useCallback((clip: File | null) => {
+    const resolve = awaiting.current
+    awaiting.current = null
+    resolve?.(clip)
+  }, [])
 
   const teardown = useCallback(() => {
     if (tick.current) clearInterval(tick.current)
@@ -42,11 +61,20 @@ export function useMicRecorder(): MicRecorder {
     stream.current?.getTracks().forEach((t) => t.stop())
     stream.current = null
     setRecording(false)
-  }, [])
+    // An unmount mid-recording must not leave a caller awaiting a clip that is
+    // never coming.
+    settle(null)
+  }, [settle])
 
-  const stop = useCallback(() => {
-    // Stopping fires the recorder's onstop, which assembles the clip below.
-    rec.current?.stop()
+  const stop = useCallback((): Promise<File | null> => {
+    const mr = rec.current
+    if (!mr || mr.state === 'inactive') return Promise.resolve(null)
+    // Stopping fires the recorder's onstop, which assembles the clip and
+    // resolves this.
+    return new Promise((resolve) => {
+      awaiting.current = resolve
+      mr.stop()
+    })
   }, [])
 
   const start = useCallback(async () => {
@@ -72,22 +100,25 @@ export function useMicRecorder(): MicRecorder {
         teardown()
         if (elapsed < MIN_MS) {
           setError('Too short - hold it for at least half a second.')
+          settle(null)
           return
         }
         const ext = (type.split('/')[1] || 'webm').split(';')[0]
-        setClip(new File([blob], `recording.${ext}`, { type: blob.type }))
+        const file = new File([blob], `recording.${ext}`, { type: blob.type })
+        setClip(file)
+        settle(file)
       }
       mr.start()
       startedAt.current = performance.now()
       setSeconds(0)
       setRecording(true)
       tick.current = setInterval(() => setSeconds((performance.now() - startedAt.current) / 1000), 200)
-      cap.current = setTimeout(stop, MAX_MS)
+      cap.current = setTimeout(() => void stop(), MAX_MS)
     } catch (e) {
       setError((e as Error).message || 'Microphone unavailable.')
       teardown()
     }
-  }, [stop, teardown])
+  }, [stop, teardown, settle])
 
   const discard = useCallback(() => {
     setClip(null)

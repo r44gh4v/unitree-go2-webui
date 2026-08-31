@@ -151,6 +151,13 @@ export default function MediaPanel() {
    * stream. It is a walkie-talkie, not a call: a phrase is heard after the
    * button is let go, not while it is held. Same cycle unitree_ui uses: enter
    * megaphone, record, upload, leave megaphone.
+   *
+   * All four steps are here, in order, because they are one sequence. Releasing
+   * used to only stop the recorder, and an effect watching for the clip to
+   * appear did the rest - the clip does not exist until the recorder assembles
+   * it, so the send could not happen in the release handler without racing.
+   * stop() resolves with the clip now, so the wait is expressed once and the
+   * sequence reads as what it is.
    */
   const talkStart = async () => {
     if (talking) return
@@ -159,30 +166,22 @@ export default function MediaPanel() {
     await mic.start()
   }
 
-  const talkEnd = () => {
+  const talkEnd = async () => {
     if (!talking) return
     setTalking(false)
-    mic.stop()
+    try {
+      const clip = await mic.stop()
+      // Too short, or nothing recorded. The recorder has already said why.
+      if (clip) await uploadMegaphone(conn, await toRobotWav(clip))
+    } catch (e) {
+      setUpload(`Talk failed: ${(e as Error).message}`)
+    } finally {
+      // Leaving megaphone mode matters more than the clip did: staying in it
+      // holds the speaker open.
+      await audio(AUDIO_API.EXIT_MEGAPHONE, {}, 'Talk')
+      mic.discard()
+    }
   }
-
-  // The clip only exists once the recorder has stopped, so the send happens
-  // here rather than in talkEnd, which would race the recorder's own onstop.
-  useEffect(() => {
-    if (talking || !mic.clip) return
-    const clip = mic.clip
-    void (async () => {
-      try {
-        const wav = await toRobotWav(clip)
-        await uploadMegaphone(conn, wav)
-      } catch (e) {
-        setUpload(`Talk failed: ${(e as Error).message}`)
-      } finally {
-        await audio(AUDIO_API.EXIT_MEGAPHONE, {}, 'Talk')
-        mic.discard()
-      }
-    })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mic.clip, talking])
 
   const hasTracks = !!tracks?.length
 
@@ -370,7 +369,7 @@ export default function MediaPanel() {
             Record from mic
           </button>
         ) : (
-          <button className="btn sm block primary" title="Finish the recording" onClick={mic.stop}>
+          <button className="btn sm block primary" title="Finish the recording" onClick={() => void mic.stop()}>
             <MicIcon size={14} />
             Stop · {mic.seconds.toFixed(1)}s
           </button>
@@ -407,9 +406,9 @@ export default function MediaPanel() {
         disabled={!connected}
         title="Hold to record, release to play it through the robot"
         onPointerDown={() => void talkStart()}
-        onPointerUp={talkEnd}
-        onPointerLeave={talkEnd}
-        onPointerCancel={talkEnd}
+        onPointerUp={() => void talkEnd()}
+        onPointerLeave={() => void talkEnd()}
+        onPointerCancel={() => void talkEnd()}
       >
         <MicIcon size={15} />
         {talking ? `Speaking - ${mic.seconds.toFixed(1)}s` : 'Hold to talk'}
