@@ -11,16 +11,10 @@ import {
   type MotionMode,
 } from '../lib/constants'
 import type { LowState, RobotError, SportModeState } from '../lib/types'
+import { ReconnectPolicy } from '../lib/reconnect'
+import { useSensing, type Sensing } from '../hooks/useSensing'
 
 /** sportmodestate.mode while the robot is holding a pose. */
-/**
- * How long to wait before each automatic reconnect. Five attempts over
- * about half a minute: long enough to ride out an access point handover or
- * a router reboot, short enough that a robot which is genuinely off stops
- * being knocked on.
- */
-const AUTO_BACKOFF_MS = [1000, 2000, 4000, 8000, 15000]
-
 const MODE_POSE = 2
 
 /** How long a deliberate pose change is trusted before telemetry overrules it. */
@@ -44,18 +38,12 @@ export interface RobotApi {
   audioOn: boolean
   /** while true the drive sticks lean the body instead of walking it */
   posing: boolean
-  /**
-   * Whether the head lidar is running. The sensor itself, not the map view, so
-   * it lives here rather than in the lidar panel: the panel only exists while
-   * its tab is open, and stopping a spinning part should not depend on which
-   * tab someone happens to be looking at.
-   */
-  lidarOn: boolean
+  /** The lidar and the assist that reads it, driven as the pair they are. */
+  sensing: Sensing
   motionMode: MotionMode
   reportedMode: string | null
   linkStats: { messages: number; bytes: number; topics: number; rate: number }
   setPosing: (v: boolean) => void
-  setLidarOn: (v: boolean) => void
   setMotionMode: (m: MotionMode) => void
   connect: (opts: ConnectOptions) => Promise<void>
   /** re-run the last connect attempt, or null if there hasn't been one */
@@ -127,10 +115,6 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     poseChangedAt.current = Date.now()
     setPosing(v)
   }, [])
-  // The robot brings its lidar up with itself, so the switch starts on to
-  // match. Starting off would have shown a stopped sensor that was in fact
-  // spinning, until someone toggled it twice to sync the two up.
-  const [lidarOn, setLidarOn] = useState(true)
   const [motionMode, setMotionMode] = useState<MotionMode>('normal')
   const [reportedMode, setReportedMode] = useState<string | null>(null)
   const [linkStats, setLinkStats] = useState({ messages: 0, bytes: 0, topics: 0, rate: 0 })
@@ -205,44 +189,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     [],
   )
 
-  /**
-   * The lidar switch is driven from here rather than from the lidar panel,
-   * because the panel only exists while its tab is open. The switch lives on
-   * the drive column, so toggling it used to do nothing at all unless the
-   * Lidar tab happened to be showing - the code that publishes it was not
-   * mounted.
-   *
-   * The payload is upper case and repeated: the firmware routinely drops one
-   * of these, and a dropped OFF leaves the sensor turning.
-   *
-   * Nothing here subscribes to a utlidar topic. Asking the robot for map
-   * data is a request for the sensor, so a watchdog that listened for frames
-   * to check the lidar had stopped was capable of starting it again.
-   */
-  useEffect(() => {
-    if (connState !== 'connected') return
-    let cancelled = false
-    // Repeated because the firmware drops one routinely. It stays a tight
-    // burst: the sensor is observed to act on the off every time, so the
-    // packet is arriving, and trailing repeats seconds later only make it
-    // harder to tell our own traffic apart from whatever restarts it.
-    const AT = [0, 100, 200, 300, 400]
-    const send = (state: 'ON' | 'OFF') => {
-      for (const ms of AT) {
-        setTimeout(() => {
-          if (!cancelled) conn.publish(TOPICS.ULIDAR_SWITCH, state)
-        }, ms)
-      }
-    }
-
-    // Voxel frames are large, so an on lidar needs the full-rate channel.
-    if (lidarOn) conn.disableTrafficSaving(true).catch(() => undefined)
-    send(lidarOn ? 'ON' : 'OFF')
-
-    return () => {
-      cancelled = true
-    }
-  }, [lidarOn, connState, conn])
+  const sensing = useSensing(conn, connState, log)
 
   /**
    * Follow the robot into and out of pose mode.
@@ -310,22 +257,18 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   }, [conn])
 
   const lastConnect = useRef<ConnectOptions | null>(null)
-  /** Set when the operator hangs up, so recovery does not undo their choice. */
-  const userQuit = useRef(false)
   /**
-   * Whether this set of connection details ever produced a working link.
-   * Recovery is for a link that dropped, not for one that never worked: a
-   * mistyped address should fail once and say so, not fail five times over
-   * half a minute while the operator waits to find out what is wrong.
+   * Everything about whether a dropped link should come back lives behind this,
+   * so the effect below reads as the one decision it makes rather than as four
+   * flags being consulted in the right order.
    */
-  const everConnected = useRef(false)
+  const recovery = useRef(new ReconnectPolicy<ConnectOptions>()).current
   const [canRetry, setCanRetry] = useState(false)
 
-  const connect = useCallback(
+  /** The parts of opening a link that are the same however it was asked for. */
+  const beginConnect = useCallback(
     async (opts: ConnectOptions) => {
-      if (opts !== lastConnect.current) everConnected.current = false
       lastConnect.current = opts
-      userQuit.current = false
       setCanRetry(true)
       setConnError(null)
       setRobotErrors([])
@@ -335,35 +278,28 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     [conn],
   )
 
+  const connect = useCallback(
+    async (opts: ConnectOptions) => {
+      // The operator asking is a fresh intent, so the policy starts over.
+      recovery.opening(opts)
+      await beginConnect(opts)
+    },
+    [beginConnect, recovery],
+  )
+
   const retry = useCallback(() => {
     if (lastConnect.current) void connect(lastConnect.current).catch(() => undefined)
   }, [connect])
 
   const disconnect = useCallback(() => {
-    userQuit.current = true
-    everConnected.current = false
+    recovery.abandoned()
     conn.disconnect()
     setStream(null)
     setLowState(null)
     setSportState(null)
     setReportedMode(null)
-  }, [conn])
+  }, [conn, recovery])
 
-  /**
-   * Roaming between access points on one network gives this machine a new
-   * local address, which kills every ICE candidate pair the session was
-   * built on. The robot has not gone anywhere and the credentials are still
-   * good, so the console gets itself back rather than making the operator
-   * notice a dead panel and press a button.
-   *
-   * It has to be a fresh session: signalling on this robot is one-shot over
-   * HTTP, so there is no renegotiating the peer connection that just died.
-   * connect() tears the old one down first, so this cannot leave the robot
-   * holding a session that no longer has a client.
-   *
-   * Attempts back off and then stop. A robot that is switched off should not
-   * be knocked on forever, and at that point the operator wants to know.
-   */
   /**
    * Closing the tab, navigating away, or shutting the lid is a disconnect the
    * operator never presses a button for, and it leaves the robot in whatever
@@ -380,33 +316,38 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('pagehide', onGone)
   }, [conn, connState])
 
-  const autoAttempt = useRef(0)
-
+  /**
+   * Roaming between access points on one network gives this machine a new local
+   * address, which kills every ICE candidate pair the session was built on. The
+   * robot has not gone anywhere and the credentials are still good, so the
+   * console gets itself back rather than leaving a dead panel to be noticed.
+   *
+   * Recovery is a fresh session, not a renegotiation: signalling on this robot
+   * is one-shot over HTTP, so there is nothing to renegotiate a dead peer
+   * connection with. conn.connect() tears the old one down first, so this
+   * cannot leave the robot holding a session with no client on the other end.
+   */
   useEffect(() => {
     if (connState === 'connected') {
-      autoAttempt.current = 0
-      everConnected.current = true
+      recovery.established()
       return
     }
     if (connState !== 'error' && connState !== 'closed') return
-    // A deliberate disconnect is not a fault to recover from, and neither is
-    // a set of details that has never worked in the first place.
-    if (userQuit.current || !lastConnect.current || !everConnected.current) return
 
-    const n = autoAttempt.current
-    if (n >= AUTO_BACKOFF_MS.length) {
+    const step = recovery.afterLoss()
+    if (step.act === 'stand-down') return
+    if (step.act === 'give-up') {
       log('Could not get the link back. Press Connect when the robot is ready')
       return
     }
-    autoAttempt.current = n + 1
-    const wait = AUTO_BACKOFF_MS[n]
-    log(`Link lost - reconnecting in ${Math.round(wait / 1000)}s (attempt ${n + 1} of ${AUTO_BACKOFF_MS.length})`)
+
+    log(`Link lost - reconnecting in ${Math.round(step.after / 1000)}s (attempt ${step.attempt} of ${step.of})`)
     const t = setTimeout(() => {
-      if (userQuit.current || !lastConnect.current) return
-      void connect(lastConnect.current).catch(() => undefined)
-    }, wait)
+      recovery.reopening()
+      void beginConnect(step.details).catch(() => undefined)
+    }, step.after)
     return () => clearTimeout(t)
-  }, [connState, connect, log])
+  }, [connState, beginConnect, recovery, log])
 
   const setVideo = useCallback(
     (on: boolean) => {
@@ -533,12 +474,11 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       videoOn,
       audioOn,
       posing,
-      lidarOn,
+      sensing,
       motionMode,
       reportedMode,
       linkStats,
       setPosing: setPosingManually,
-      setLidarOn,
       setMotionMode,
       connect,
       retry: canRetry ? retry : null,
@@ -559,7 +499,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       clearErrors,
       log,
     }),
-    [conn, connState, connError, ip, lowState, sportState, traffic, robotErrors, stream, videoOn, audioOn, posing, lidarOn, motionMode, reportedMode, linkStats, connect, canRetry, retry, disconnect, setVideo, setAudio, apiIdFor, sport, runAction, move, moveSticks, setEuler, setPosingManually, stopMove, emergencyStop, refreshMotionMode, switchMotionMode, clearTraffic, clearErrors, log],
+    [conn, connState, connError, ip, lowState, sportState, traffic, robotErrors, stream, videoOn, audioOn, posing, sensing, motionMode, reportedMode, linkStats, connect, canRetry, retry, disconnect, setVideo, setAudio, apiIdFor, sport, runAction, move, moveSticks, setEuler, setPosingManually, stopMove, emergencyStop, refreshMotionMode, switchMotionMode, clearTraffic, clearErrors, log],
   )
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>

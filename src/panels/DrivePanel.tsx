@@ -2,107 +2,15 @@ import { useCallback, useEffect, useState } from 'react'
 import Joystick from '../components/Joystick'
 import { useRobot } from '../state/RobotContext'
 import { useDriveLoop } from '../hooks/useDriveLoop'
-import { OBSTACLES_AVOID_API, TOPICS } from '../lib/constants'
-import { unwrapResponse } from '../lib/go2'
 import { ScanIcon, ShieldIcon } from '../components/Icons'
-
-/**
- * How long switching the lidar off waits for the obstacle-avoidance disable
- * to come back before going ahead regardless. Long enough for the reply on
- * a healthy link, far short of the 8s an unanswered api call takes.
- */
-const AVOID_ACK_MS = 600
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 /** Sticks, speed, and what the robot is allowed to sense. */
 export default function DrivePanel() {
-  const { connState, conn, posing, lidarOn, setLidarOn, log } = useRobot()
+  const { connState, posing, sensing } = useRobot()
   const connected = connState === 'connected'
-
-  const [avoidance, setAvoidance] = useState<boolean | null>(null)
-
-  // Read the current obstacle-avoidance state; reused by the recheck link
-  // when the first read fails and the state is unknown.
-  const readAvoidance = useCallback(async () => {
-    try {
-      const res = await conn.request(TOPICS.OBSTACLES_AVOID, OBSTACLES_AVOID_API.SWITCH_GET)
-      const a = unwrapResponse<{ enable: boolean }>(res)
-      if (typeof a?.enable === 'boolean') setAvoidance(a.enable)
-    } catch {
-      /* stays unknown, and the toggle stays usable - setting the state is
-         authoritative even when reading it back is not */
-    }
-  }, [conn])
-
-  useEffect(() => {
-    if (!connected) {
-      setAvoidance(null)
-      return
-    }
-    void readAvoidance()
-  }, [connected, readAvoidance])
-
-  const toggleAvoidance = async (next: boolean) => {
-    try {
-      await conn.request(TOPICS.OBSTACLES_AVOID, OBSTACLES_AVOID_API.SWITCH_SET, { enable: next })
-      setAvoidance(next)
-      log(`Obstacle avoidance ${next ? 'on' : 'off'}`)
-    } catch (e) {
-      log(`Obstacle avoidance: ${(e as Error).message}`)
-    }
-  }
-
-  /**
-   * These two are a sensor and the thing that consumes it, not two
-   * independent switches, so they are driven as a pair:
-   *
-   *   lidar off     -> avoidance goes off too, and goes first. Left running,
-   *                    the assist notices its sensor stopped and puts it back
-   *                    a couple of seconds later. Measured on the robot.
-   *   avoidance on  -> the lidar comes on. An assist with no sensor is not a
-   *                    thing the robot will honour: it starts the lidar
-   *                    itself, so the console turns it on where it is visible
-   *                    rather than showing a stopped lidar that is spinning.
-   *
-   * The state query (api 1002) cannot gate any of this. It answers
-   * {"enable":false} while the service is still holding the lidar up, so the
-   * disable goes out every time regardless of what we believe. Disabling an
-   * already-disabled assist costs nothing.
-   *
-   * Turning the lidar back on does not restore avoidance. The toggle shows
-   * that it went off and the operator can put it back; restoring an assist
-   * unasked is worse than leaving it visibly off.
-   */
-  const [linking, setLinking] = useState(false)
-
-  const setLidar = async (next: boolean) => {
-    setLinking(true)
-    try {
-      // The disable is on the wire before the lidar off either way, and that
-      // is the ordering that matters. Waiting for its reply is not: an api
-      // call that goes unanswered takes the full 8s timeout, and over the
-      // cloud relay that happens. The operator asked a moving part to stop,
-      // so it stops on a short grace period whether the assist answers or not.
-      if (!next) await Promise.race([toggleAvoidance(false), sleep(AVOID_ACK_MS)])
-      setLidarOn(next)
-    } finally {
-      setLinking(false)
-    }
-  }
-
-  const setAvoid = async (next: boolean) => {
-    setLinking(true)
-    try {
-      if (next && !lidarOn) {
-        setLidarOn(true)
-        log('Obstacle avoidance needs the lidar - starting it')
-      }
-      await toggleAvoidance(next)
-    } finally {
-      setLinking(false)
-    }
-  }
+  // The lidar and the assist that reads it move together, and useSensing owns
+  // that rule. This panel only draws two toggles.
+  const { lidarOn, avoidance, busy, setLidar, setAvoidance, recheckAvoidance } = sensing
 
   /**
    * How far a full input pushes each stick. These scale what goes on the wire,
@@ -217,7 +125,7 @@ export default function DrivePanel() {
                 title="The robot has not reported this state - ask it again"
                 onClick={(e) => {
                   e.preventDefault()
-                  void readAvoidance()
+                  recheckAvoidance()
                 }}
               >
                 unknown - recheck
@@ -227,8 +135,8 @@ export default function DrivePanel() {
           <input
             type="checkbox"
             checked={!!avoidance}
-            disabled={!connected || linking}
-            onChange={(e) => void setAvoid(e.target.checked)}
+            disabled={!connected || busy}
+            onChange={(e) => setAvoidance(e.target.checked)}
             style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
           />
           <span className="track" />
@@ -254,8 +162,8 @@ export default function DrivePanel() {
           <input
             type="checkbox"
             checked={lidarOn}
-            disabled={!connected || linking}
-            onChange={(e) => void setLidar(e.target.checked)}
+            disabled={!connected || busy}
+            onChange={(e) => setLidar(e.target.checked)}
             style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
           />
           <span className="track" />

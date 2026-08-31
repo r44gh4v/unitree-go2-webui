@@ -23,7 +23,8 @@ const START_VIEW = { radius: 6, theta: Math.PI / 4, phi: Math.PI / 3 }
  * surface, not a cloud of dots). Drag to orbit, scroll to zoom.
  */
 export default function LidarPanel() {
-  const { conn, connState, lidarOn, log } = useRobot()
+  const { conn, connState, sensing, log } = useRobot()
+  const { lidarOn } = sensing
   const connected = connState === 'connected'
   const mountRef = useRef<HTMLDivElement>(null)
   const meshRef = useRef<THREE.Mesh | null>(null)
