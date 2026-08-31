@@ -176,8 +176,19 @@ export default function LidarPanel() {
       renderer.domElement.removeEventListener('pointerup', onUp)
       renderer.domElement.removeEventListener('pointercancel', onUp)
       renderer.domElement.removeEventListener('wheel', onWheel)
-      voxelMesh.geometry.dispose()
-      material.dispose()
+      // Everything the scene holds, not the three things that were top of
+      // mind when this was written. The grid and the robot marker each own a
+      // geometry and a material too, and this panel unmounts on every tab
+      // switch - so what was missed here accumulated on the GPU for the life
+      // of the session, invisibly, until the browser started refusing new
+      // WebGL contexts.
+      scene.traverse((obj) => {
+        const holder = obj as Partial<THREE.Mesh>
+        holder.geometry?.dispose()
+        const mat = holder.material
+        if (Array.isArray(mat)) mat.forEach((m) => m.dispose())
+        else mat?.dispose()
+      })
       renderer.dispose()
       mount.removeChild(renderer.domElement)
       meshRef.current = null
