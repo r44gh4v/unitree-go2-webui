@@ -3,19 +3,12 @@ import { useRobot } from '../state/RobotContext'
 import { ACTIONS, ACTION_GROUPS, type ActionSpec } from '../lib/actions'
 import { actionIconSvg } from '../lib/actionIcons'
 import { SPORT_CMD, SPORT_CMD_MCF } from '../lib/constants'
+import { clearsEverything, isExclusive, staysLit } from '../lib/actionKinds'
 
 /** How long a refusal stays on the tile before it goes quiet again. */
 const FAIL_MS = 5000
 
 type Phase = 'idle' | 'pending' | 'on' | 'failed'
-
-/**
- * Actions that put the robot back to a plain standing or resting state. Any of
- * them ends whatever gait or mode was running, so every lit toggle has to go
- * out with them - otherwise a tile stays lit for something the robot stopped
- * doing, which is what made them look stuck.
- */
-const CLEARS_EVERYTHING = new Set(['StopMove', 'Damp', 'StandDown', 'Sit', 'RecoveryStand'])
 
 /**
  * Tooltip text: what the action does, then whatever the operator needs to know
@@ -33,7 +26,7 @@ function describe(
   else if (phase === 'failed' && reason) parts.push(reason)
   else if (!resolved.exact) {
     parts.push(`The ${mode} service does not list this. Sends the ${resolved.from} id, and the robot may refuse it.`)
-  } else if (a.toggle) parts.push(phase === 'on' ? 'Press again to stop.' : 'Stays on until pressed again.')
+  } else if (staysLit(a.kind)) parts.push(phase === 'on' ? 'Press again to stop.' : 'Stays on until pressed again.')
   if (resolved) parts.push(`api ${resolved.apiId}`)
   return parts.join(' · ')
 }
@@ -68,38 +61,38 @@ export default function ActionsPanel() {
   }, [])
 
   const fire = (a: ActionSpec) => {
-    // Pose is a tile like any other; it just needs its own send sequence.
-    if (a.name === 'Pose') {
+    // Pose shares its state with the drive loop, so it has its own send.
+    if (a.kind === 'pose') {
       void togglePose()
       return
     }
+
     const wasOn = phase[a.name] === 'on'
-    const next = a.toggle ? !wasOn : true
+    const next = staysLit(a.kind) ? !wasOn : true
     setPhase((p) => ({ ...p, [a.name]: 'pending' }))
+
     runAction(a, next)
       .then(() => {
-        if (CLEARS_EVERYTHING.has(a.name)) {
-          // Back to standing or resting: nothing is running any more.
+        if (clearsEverything(a.kind)) {
+          // Back to standing or resting: nothing is running any more, so no
+          // tile should still claim to be.
           setPhase({})
           setPosing(false)
-        } else if (!a.toggle) {
-          // A one-shot has no lasting state to show; it just goes quiet again.
-          settle(a.name, 'idle')
-        } else if (a.exclusive && next) {
-          // The robot only walks one way at a time, so turning a gait on has to
-          // visibly release every other gait rather than leaving two lit.
+        } else if (isExclusive(a.kind) && next) {
+          // The robot walks one way at a time, so lighting a gait releases the
+          // others rather than leaving two lit.
           setPhase((p) => {
             const out = { ...p }
             for (const other of ACTIONS) {
-              if (other.exclusive && other.name !== a.name) out[other.name] = 'idle'
+              if (isExclusive(other.kind) && other.name !== a.name) out[other.name] = 'idle'
             }
             out[a.name] = 'on'
             return out
           })
         } else {
-          settle(a.name, next ? 'on' : 'idle')
+          settle(a.name, staysLit(a.kind) && next ? 'on' : 'idle')
         }
-        log(`${a.label}${a.toggle ? (next ? ' on' : ' off') : ''} - the robot accepted it`)
+        log(`${a.label}${staysLit(a.kind) ? (next ? ' on' : ' off') : ''} - the robot accepted it`)
       })
       .catch((e) => {
         const message = (e as Error).message
@@ -150,7 +143,7 @@ export default function ActionsPanel() {
                 const untested = connected && !!resolved && !resolved.exact
                 // Pose mode is shared state - the drive loop reads it too - so
                 // it comes from the context rather than this panel's own map.
-                const p: Phase = a.name === 'Pose' ? (posing ? 'on' : 'idle') : (phase[a.name] ?? 'idle')
+                const p: Phase = a.kind === 'pose' ? (posing ? 'on' : 'idle') : (phase[a.name] ?? 'idle')
                 const icon = actionIconSvg(a.name)
                 return (
                   <button
@@ -163,7 +156,7 @@ export default function ActionsPanel() {
                       unavailable ? 'unavailable' : '',
                       untested ? 'untested' : '',
                     ].filter(Boolean).join(' ')}
-                    aria-pressed={a.toggle ? p === 'on' : undefined}
+                    aria-pressed={staysLit(a.kind) ? p === 'on' : undefined}
                     aria-busy={p === 'pending' || undefined}
                     disabled={!connected || unavailable || p === 'pending'}
                     title={describe(a, resolved, motionMode, p, reason[a.name])}

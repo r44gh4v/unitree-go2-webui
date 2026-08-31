@@ -12,6 +12,7 @@ import {
 } from '../lib/constants'
 import type { LowState, RobotError, SportModeState } from '../lib/types'
 import { ReconnectPolicy } from '../lib/reconnect'
+import { sendsToggleData } from '../lib/actionKinds'
 import { useSensing, type Sensing } from '../hooks/useSensing'
 
 /** sportmodestate.mode while the robot is holding a pose. */
@@ -441,7 +442,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       if (!resolved) {
         return Promise.reject(new Error(`${a.label} has no known command id`))
       }
-      const parameter = a.toggle ? { data: toggleOn } : a.parameter
+      const parameter = sendsToggleData(a.kind) ? { data: toggleOn } : a.parameter
       return conn.request(TOPICS.SPORT_MOD, resolved.apiId, parameter)
     },
     [conn, apiIdFor],

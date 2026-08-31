@@ -1,3 +1,4 @@
+import type { ActionKind } from './actionKinds'
 // Go2 WebRTC topics, API ids, and error tables.
 // Transcribed from legion1581/unitree_webrtc_connect constants.py and the
 // matching example scripts. Values are wire-exact - changing one silently
@@ -259,62 +260,64 @@ export interface ActionSpec {
   ids: Partial<Record<MotionMode, number>>
   /** parameter sent with the request, if any */
   parameter?: unknown
-  /** toggling actions take {data: true|false} */
-  toggle?: boolean
+  /**
+   * What this action does to the grid and to the wire. See lib/actionKinds.ts -
+   * every question the panel used to answer with a name set and two booleans is
+   * answered from here instead.
+   */
+  kind: ActionKind
   group: 'posture' | 'gesture' | 'gait' | 'dynamic' | 'assist'
   /** moves that need clear space - marked in the grid, never blocked */
   risky?: boolean
-  /** gaits replace one another, so turning one on visibly releases the rest */
-  exclusive?: boolean
   note?: string
 }
 
 export const ACTIONS: ActionSpec[] = [
   // stand and rest
-  { name: 'RecoveryStand', label: 'Stand up', ids: { normal: 1006, ai: 1006, mcf: 1006 }, group: 'posture', note: 'Gets up from lying down or from a fall, ready to walk' },
-  { name: 'StandDown', label: 'Lie down', ids: { normal: 1005, ai: 1005, mcf: 1005 }, group: 'posture', note: 'Folds down and rests on the ground' },
-  { name: 'Sit', label: 'Sit', ids: { normal: 1009, mcf: 1009 }, group: 'posture', note: 'Sits back on the hindquarters' },
-  { name: 'RiseSit', label: 'Rise', ids: { normal: 1010, mcf: 1010 }, group: 'posture', note: 'Gets up out of a sit' },
-  { name: 'Damp', label: 'Go limp', ids: { normal: 1001, ai: 1001, mcf: 1001 }, group: 'posture', note: 'Motors go slack and the robot settles to the floor' },
-  { name: 'StopMove', label: 'Stand still', ids: { normal: 1003, ai: 1003, mcf: 1003 }, group: 'posture', note: 'Halts locomotion. Also leaves pose mode and most gaits.' },
+  { name: 'RecoveryStand', label: 'Stand up', ids: { normal: 1006, ai: 1006, mcf: 1006 }, kind: 'settles', group: 'posture', note: 'Gets up from lying down or from a fall, ready to walk' },
+  { name: 'StandDown', label: 'Lie down', ids: { normal: 1005, ai: 1005, mcf: 1005 }, kind: 'settles', group: 'posture', note: 'Folds down and rests on the ground' },
+  { name: 'Sit', label: 'Sit', ids: { normal: 1009, mcf: 1009 }, kind: 'settles', group: 'posture', note: 'Sits back on the hindquarters' },
+  { name: 'RiseSit', label: 'Rise', ids: { normal: 1010, mcf: 1010 }, kind: 'oneShot', group: 'posture', note: 'Gets up out of a sit' },
+  { name: 'Damp', label: 'Go limp', ids: { normal: 1001, ai: 1001, mcf: 1001 }, kind: 'settles', group: 'posture', note: 'Motors go slack and the robot settles to the floor' },
+  { name: 'StopMove', label: 'Stand still', ids: { normal: 1003, ai: 1003, mcf: 1003 }, kind: 'settles', group: 'posture', note: 'Halts locomotion. Also leaves pose mode and most gaits.' },
 
   // walking styles
-  { name: 'ClassicWalk', label: 'Normal walk', ids: { mcf: 2049 }, toggle: true, exclusive: true, group: 'gait', note: 'The everyday walking gait' },
-  { name: 'StaticWalk', label: 'Careful walk', ids: { mcf: 1061 }, toggle: true, exclusive: true, group: 'gait', note: 'Slow and deliberate, keeping three feet down' },
-  { name: 'FreeWalk', label: 'Terrain walk', ids: { mcf: 2045 }, toggle: true, exclusive: true, group: 'gait', note: 'Picks its own footing over uneven ground' },
-  { name: 'TrotRun', label: 'Run', ids: { mcf: 1062 }, toggle: true, exclusive: true, group: 'gait', note: 'Faster running trot' },
-  { name: 'RageMode', label: 'Sprint', ids: { mcf: 2059 }, toggle: true, exclusive: true, group: 'gait', risky: true, note: 'Fastest running mode. Needs a lot of open space.' },
-  { name: 'WalkStair', label: 'Stair climbing', ids: { mcf: 1049 }, toggle: true, exclusive: true, group: 'gait', note: 'For stairs and tall obstacles. Approach steps straight on.' },
-  { name: 'CrossStep', label: 'Crossover step', ids: { advanced: 1302, mcf: 2051 }, toggle: true, exclusive: true, group: 'gait', risky: true, note: 'Crosses the legs while stepping sideways' },
-  { name: 'FreeBound', label: 'Terrain hop', ids: { mcf: 2046 }, toggle: true, exclusive: true, group: 'gait', risky: true, note: 'Bounding gait that adapts to rough ground' },
-  { name: 'FreeJump', label: 'Auto jump', ids: { mcf: 2047 }, toggle: true, exclusive: true, group: 'gait', risky: true, note: 'Keeps walking and jumps obstacles it spots by itself' },
-  { name: 'EconomicGait', label: 'Battery saver', ids: { normal: 1035, mcf: 1063 }, toggle: true, group: 'gait', note: 'Energy-saving walk that stretches the battery' },
-  { name: 'ContinuousGait', label: 'March', ids: { normal: 1019, mcf: 1019 }, toggle: true, group: 'gait', note: 'Keeps stepping instead of standing still' },
+  { name: 'ClassicWalk', label: 'Normal walk', ids: { mcf: 2049 }, kind: 'gait', group: 'gait', note: 'The everyday walking gait' },
+  { name: 'StaticWalk', label: 'Careful walk', ids: { mcf: 1061 }, kind: 'gait', group: 'gait', note: 'Slow and deliberate, keeping three feet down' },
+  { name: 'FreeWalk', label: 'Terrain walk', ids: { mcf: 2045 }, kind: 'gait', group: 'gait', note: 'Picks its own footing over uneven ground' },
+  { name: 'TrotRun', label: 'Run', ids: { mcf: 1062 }, kind: 'gait', group: 'gait', note: 'Faster running trot' },
+  { name: 'RageMode', label: 'Sprint', ids: { mcf: 2059 }, kind: 'gait', group: 'gait', risky: true, note: 'Fastest running mode. Needs a lot of open space.' },
+  { name: 'WalkStair', label: 'Stair climbing', ids: { mcf: 1049 }, kind: 'gait', group: 'gait', note: 'For stairs and tall obstacles. Approach steps straight on.' },
+  { name: 'CrossStep', label: 'Crossover step', ids: { advanced: 1302, mcf: 2051 }, kind: 'gait', group: 'gait', risky: true, note: 'Crosses the legs while stepping sideways' },
+  { name: 'FreeBound', label: 'Terrain hop', ids: { mcf: 2046 }, kind: 'gait', group: 'gait', risky: true, note: 'Bounding gait that adapts to rough ground' },
+  { name: 'FreeJump', label: 'Auto jump', ids: { mcf: 2047 }, kind: 'gait', group: 'gait', risky: true, note: 'Keeps walking and jumps obstacles it spots by itself' },
+  { name: 'EconomicGait', label: 'Battery saver', ids: { normal: 1035, mcf: 1063 }, kind: 'latching', group: 'gait', note: 'Energy-saving walk that stretches the battery' },
+  { name: 'ContinuousGait', label: 'March', ids: { normal: 1019, mcf: 1019 }, kind: 'latching', group: 'gait', note: 'Keeps stepping instead of standing still' },
 
   // tricks and greetings
-  { name: 'Hello', label: 'Wave', ids: { normal: 1016, ai: 1016, mcf: 1016 }, group: 'gesture', note: 'Lifts a front paw and waves' },
-  { name: 'Stretch', label: 'Stretch', ids: { normal: 1017, mcf: 1017 }, group: 'gesture', note: 'Stretches front then back, like waking up' },
-  { name: 'FingerHeart', label: 'Heart', ids: { normal: 1036, mcf: 1036 }, group: 'gesture', note: 'Makes a heart shape with the front paws' },
-  { name: 'Scrape', label: 'Paw ground', ids: { normal: 1029, mcf: 1029 }, group: 'gesture', note: 'Scrapes at the floor with a front leg' },
-  { name: 'Dance1', label: 'Dance one', ids: { normal: 1022, mcf: 1022 }, group: 'gesture', risky: true, note: 'A short choreographed routine' },
-  { name: 'Dance2', label: 'Dance two', ids: { normal: 1023, mcf: 1023 }, group: 'gesture', risky: true, note: 'A second, livelier routine' },
+  { name: 'Hello', label: 'Wave', ids: { normal: 1016, ai: 1016, mcf: 1016 }, kind: 'oneShot', group: 'gesture', note: 'Lifts a front paw and waves' },
+  { name: 'Stretch', label: 'Stretch', ids: { normal: 1017, mcf: 1017 }, kind: 'oneShot', group: 'gesture', note: 'Stretches front then back, like waking up' },
+  { name: 'FingerHeart', label: 'Heart', ids: { normal: 1036, mcf: 1036 }, kind: 'oneShot', group: 'gesture', note: 'Makes a heart shape with the front paws' },
+  { name: 'Scrape', label: 'Paw ground', ids: { normal: 1029, mcf: 1029 }, kind: 'oneShot', group: 'gesture', note: 'Scrapes at the floor with a front leg' },
+  { name: 'Dance1', label: 'Dance one', ids: { normal: 1022, mcf: 1022 }, kind: 'oneShot', group: 'gesture', risky: true, note: 'A short choreographed routine' },
+  { name: 'Dance2', label: 'Dance two', ids: { normal: 1023, mcf: 1023 }, kind: 'oneShot', group: 'gesture', risky: true, note: 'A second, livelier routine' },
 
   // jumps and flips - all need space
-  { name: 'FrontJump', label: 'Jump forward', ids: { normal: 1031, mcf: 1031 }, group: 'dynamic', risky: true, note: 'Jumps forward. Needs clear space ahead.' },
-  { name: 'FrontPounce', label: 'Pounce', ids: { normal: 1032, mcf: 1032 }, group: 'dynamic', risky: true, note: 'Lunges forward. Needs clear space ahead.' },
-  { name: 'FrontFlip', label: 'Front flip', ids: { normal: 1030, mcf: 1030 }, parameter: { data: true }, group: 'dynamic', risky: true, note: 'Needs clear space and a soft floor' },
-  { name: 'BackFlip', label: 'Back flip', ids: { ai: 1044, mcf: 2043 }, parameter: { data: true }, group: 'dynamic', risky: true, note: 'Needs clear space and a soft floor' },
-  { name: 'LeftFlip', label: 'Left flip', ids: { ai: 1042, mcf: 2041 }, parameter: { data: true }, group: 'dynamic', risky: true, note: 'Sideways flip. Needs clear space and a soft floor.' },
-  { name: 'Handstand', label: 'Handstand', ids: { ai: 1039, advanced: 1301, mcf: 2044 }, toggle: true, group: 'dynamic', risky: true, note: 'Balances on the front legs, hind legs in the air. Press again to come down.' },
-  { name: 'BackStand', label: 'Hind stand', ids: { mcf: 2050 }, toggle: true, group: 'dynamic', risky: true, note: 'Rears up onto the back legs, front paws in the air. The opposite of a handstand.' },
+  { name: 'FrontJump', label: 'Jump forward', ids: { normal: 1031, mcf: 1031 }, kind: 'oneShot', group: 'dynamic', risky: true, note: 'Jumps forward. Needs clear space ahead.' },
+  { name: 'FrontPounce', label: 'Pounce', ids: { normal: 1032, mcf: 1032 }, kind: 'oneShot', group: 'dynamic', risky: true, note: 'Lunges forward. Needs clear space ahead.' },
+  { name: 'FrontFlip', label: 'Front flip', ids: { normal: 1030, mcf: 1030 }, kind: 'oneShot', parameter: { data: true }, group: 'dynamic', risky: true, note: 'Needs clear space and a soft floor' },
+  { name: 'BackFlip', label: 'Back flip', ids: { ai: 1044, mcf: 2043 }, kind: 'oneShot', parameter: { data: true }, group: 'dynamic', risky: true, note: 'Needs clear space and a soft floor' },
+  { name: 'LeftFlip', label: 'Left flip', ids: { ai: 1042, mcf: 2041 }, kind: 'oneShot', parameter: { data: true }, group: 'dynamic', risky: true, note: 'Sideways flip. Needs clear space and a soft floor.' },
+  { name: 'Handstand', label: 'Handstand', ids: { ai: 1039, advanced: 1301, mcf: 2044 }, kind: 'latching', group: 'dynamic', risky: true, note: 'Balances on the front legs, hind legs in the air. Press again to come down.' },
+  { name: 'BackStand', label: 'Hind stand', ids: { mcf: 2050 }, kind: 'latching', group: 'dynamic', risky: true, note: 'Rears up onto the back legs, front paws in the air. The opposite of a handstand.' },
 
   // follows you or steers itself
-  { name: 'LeadFollow', label: 'Walk with me', ids: { ai: 1045, mcf: 2056 }, toggle: true, group: 'assist', note: 'Walks alongside and follows a person' },
-  { name: 'FreeAvoid', label: 'Auto avoid', ids: { mcf: 2048 }, toggle: true, group: 'assist', note: 'Steers around obstacles on its own' },
+  { name: 'LeadFollow', label: 'Walk with me', ids: { ai: 1045, mcf: 2056 }, kind: 'latching', group: 'assist', note: 'Walks alongside and follows a person' },
+  { name: 'FreeAvoid', label: 'Auto avoid', ids: { mcf: 2048 }, kind: 'latching', group: 'assist', note: 'Steers around obstacles on its own' },
 
   // Sits with the postures: it is a way of standing, and while it is on the
   // drive sticks lean the body instead of walking it.
-  { name: 'Pose', label: 'Pose mode', ids: { normal: 1028, mcf: 1028 }, toggle: true, group: 'posture', note: 'Feet stay planted and the drive sticks lean the body' },
+  { name: 'Pose', label: 'Pose mode', ids: { normal: 1028, mcf: 1028 }, kind: 'pose', group: 'posture', note: 'Feet stay planted and the drive sticks lean the body' },
 ]
 
 export const ACTION_GROUPS: { key: ActionSpec['group']; label: string; note: string }[] = [
