@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useRobot } from '../state/RobotContext'
+import { useRobot, useTelemetry } from '../state/RobotContext'
 import { FOOT_NAMES, GAITS, MOTOR_NAMES, SPORT_QUERIES } from '../lib/constants'
 import { unwrapResponse } from '../lib/go2'
 import { MODE_NAMES } from '../lib/types'
@@ -33,7 +33,10 @@ function Stat({ label, value, unit, meter }: { label: string; value: string; uni
  * then the detail tables for when something looks wrong.
  */
 export default function StatusPanel() {
-    const { lowState, sportState, robotErrors, clearErrors, connState, sport } = useRobot()
+    const { diagnostics, connState, motion } = useRobot()
+  const { errors: robotErrors, clearErrors } = diagnostics
+  const { sport } = motion
+  const { lowState, sportState } = useTelemetry()
     const faultsRef = useRef<HTMLDivElement>(null)
     const [queryResult, setQueryResult] = useState<string | null>(null)
 

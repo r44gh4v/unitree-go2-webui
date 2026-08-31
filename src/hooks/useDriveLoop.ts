@@ -65,7 +65,8 @@ function approach(current: number, target: number): number {
  * while moving - a single Move command only produces a short step.
  */
 export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
-  const { moveSticks, setEuler, posing, connState } = useRobot()
+  const { motion, connState } = useRobot()
+  const { moveSticks, setEuler, posing } = motion
   const stick = useRef<DriveVector>(ZERO)
   const keys = useRef(new Set<string>())
   const gamepadIndex = useRef<number | null>(null)

@@ -46,10 +46,9 @@ const METHODS: { value: ConnectMethod; label: string; blurb: string }[] = [
 ]
 
 export default function ConnectPanel() {
-  const {
-    connState, connError, connect, disconnect, retry,
-    reportedMode, refreshMotionMode, switchMotionMode, log,
-  } = useRobot()
+  const { connState, connError, link, motion, log } = useRobot()
+  const { connect, disconnect, retry } = link
+  const { reportedMode, refreshMode: refreshMotionMode, switchMode: switchMotionMode } = motion
 
   // A cloud deployment has no network of its own, so every method that reaches
   // the robot through the server's LAN is dead there and says so rather than

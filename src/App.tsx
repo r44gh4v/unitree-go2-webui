@@ -47,21 +47,21 @@ function Reading({ label, value, unit, tone }: { label: string; value: string; u
  * visible while the Status tab happened to be open.
  */
 function Rail() {
-  const { emergencyStop, connState, connError, ip, robotErrors, linkStats } = useRobot()
+  const { connState, connError, ip, motion, diagnostics, link } = useRobot()
   const connected = connState === 'connected'
-  const faults = robotErrors.filter((e) => !e.cleared).length
+  const faults = diagnostics.errors.filter((e) => !e.cleared).length
 
   // Escape is the panic key and works even while typing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && connected) {
         e.preventDefault()
-        emergencyStop()
+        motion.emergencyStop()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [connected, emergencyStop])
+  }, [connected, motion])
 
   const badge =
     connState === 'connected' ? 'Linked'
@@ -85,14 +85,14 @@ function Rail() {
         )}
       </div>
 
-      <button className="estop" onClick={emergencyStop} disabled={!connected} title="Stop the robot immediately">
+      <button className="estop" onClick={motion.emergencyStop} disabled={!connected} title="Stop the robot immediately">
         <span className="estop-label">STOP</span>
         <kbd>Esc</kbd>
       </button>
 
       <div className="rail-side rail-end">
         <div className="rail-readings">
-          <Reading label="Data" value={connected ? String(linkStats.rate) : '-'} unit="/s" />
+          <Reading label="Data" value={connected ? String(link.stats.rate) : '-'} unit="/s" />
         </div>
       </div>
     </header>

@@ -39,7 +39,8 @@ function describe(
 }
 
 export default function ActionsPanel() {
-  const { connState, motionMode, runAction, sport, apiIdFor, posing, setPosing, log } = useRobot()
+  const { connState, motion, log } = useRobot()
+  const { mode: motionMode, runAction, sport, apiIdFor, posing, setPosing } = motion
   const connected = connState === 'connected'
   const [phase, setPhase] = useState<Record<string, Phase>>({})
   const [reason, setReason] = useState<Record<string, string>>({})

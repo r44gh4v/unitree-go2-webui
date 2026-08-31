@@ -6,7 +6,8 @@ import { ScanIcon, ShieldIcon } from '../components/Icons'
 
 /** Sticks, speed, and what the robot is allowed to sense. */
 export default function DrivePanel() {
-  const { connState, posing, sensing } = useRobot()
+  const { connState, motion, sensing } = useRobot()
+  const { posing } = motion
   const connected = connState === 'connected'
   // The lidar and the assist that reads it move together, and useSensing owns
   // that rule. This panel only draws two toggles.

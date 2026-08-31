@@ -24,34 +24,50 @@ const TRAFFIC_LIMIT = 500
 const UI_FLUSH_MS = 150
 
 
+/**
+ * What a panel needs to know to work the robot.
+ *
+ * Five things nearly every panel touches stay at the top; the rest is grouped
+ * by what it is for. A panel that drives learns `motion`, one that shows the
+ * link learns `link`, and neither has to read past the other.
+ *
+ * Telemetry is deliberately not here. It arrives twenty times a second, and
+ * putting it in this object meant every tick built a new one and re-rendered
+ * all thirteen consumers - eleven of which never read it. It has its own
+ * context; see useTelemetry.
+ */
 export interface RobotApi {
   conn: Go2Connection
   connState: ConnState
   connError: string | null
   ip: string
-  lowState: LowState | null
-  sportState: SportModeState | null
-  traffic: TrafficEntry[]
-  robotErrors: RobotError[]
-  stream: MediaStream | null
-  videoOn: boolean
-  audioOn: boolean
-  /** while true the drive sticks lean the body instead of walking it */
-  posing: boolean
+  log: (text: string) => void
+  link: LinkApi
+  motion: MotionApi
+  media: MediaApi
   /** The lidar and the assist that reads it, driven as the pair they are. */
   sensing: Sensing
-  motionMode: MotionMode
-  reportedMode: string | null
-  linkStats: { messages: number; bytes: number; topics: number; rate: number }
-  setPosing: (v: boolean) => void
-  setMotionMode: (m: MotionMode) => void
+  diagnostics: DiagnosticsApi
+}
+
+/** Opening, holding and closing the link. */
+export interface LinkApi {
+  stats: { messages: number; bytes: number; topics: number; rate: number }
   connect: (opts: ConnectOptions) => Promise<void>
   /** re-run the last connect attempt, or null if there hasn't been one */
   retry: (() => void) | null
   disconnect: () => void
-  setVideo: (on: boolean) => void
-  setAudio: (on: boolean) => void
-  /** resolved api id for an action under the current motion mode, or null */
+}
+
+/** Everything that makes the robot move, or stop. */
+export interface MotionApi {
+  /** while true the drive sticks lean the body instead of walking it */
+  posing: boolean
+  setPosing: (v: boolean) => void
+  mode: MotionMode
+  /** what the robot says it is running, which can differ from `mode` */
+  reportedMode: string | null
+  setMode: (m: MotionMode) => void
   /**
    * Which id to send for an action, and whether the running motion service
    * actually lists it. `exact: false` means we are falling back to another
@@ -72,19 +88,52 @@ export interface RobotApi {
   setEuler: (roll: number, pitch: number, yaw: number) => void
   stopMove: () => void
   emergencyStop: () => void
-  refreshMotionMode: () => Promise<string | null>
-  switchMotionMode: (name: string) => Promise<void>
+  refreshMode: () => Promise<string | null>
+  switchMode: (name: string) => Promise<void>
+}
+
+/** Seeing and hearing through the robot. */
+export interface MediaApi {
+  stream: MediaStream | null
+  videoOn: boolean
+  audioOn: boolean
+  setVideo: (on: boolean) => void
+  setAudio: (on: boolean) => void
+}
+
+/** What went past, and what went wrong. */
+export interface DiagnosticsApi {
+  traffic: TrafficEntry[]
+  errors: RobotError[]
   clearTraffic: () => void
   clearErrors: () => void
-  log: (text: string) => void
+}
+
+/**
+ * What the robot is reporting about itself, right now.
+ *
+ * Separate from RobotApi because of how often it changes: lowstate and
+ * sportmodestate arrive continuously, so anything sharing an object with them
+ * is rebuilt continuously too. Only the two panels that display readings
+ * subscribe here; everything else is left alone.
+ */
+export interface Telemetry {
+  lowState: LowState | null
+  sportState: SportModeState | null
 }
 
 const Ctx = createContext<RobotApi | null>(null)
+const TelemetryCtx = createContext<Telemetry>({ lowState: null, sportState: null })
 
 export function useRobot(): RobotApi {
   const v = useContext(Ctx)
   if (!v) throw new Error('useRobot must be used inside RobotProvider')
   return v
+}
+
+/** Live readings. Subscribing re-renders on every frame from the robot. */
+export function useTelemetry(): Telemetry {
+  return useContext(TelemetryCtx)
 }
 
 export function RobotProvider({ children }: { children: ReactNode }) {
@@ -460,31 +509,22 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   const clearTraffic = useCallback(() => setTraffic([]), [])
   const clearErrors = useCallback(() => setRobotErrors([]), [])
 
-  const api = useMemo<RobotApi>(
+  // Each group is memoised on its own dependencies, so a change in one does not
+  // rebuild the others. The top-level object then only changes when a group
+  // does, which is what keeps a panel that reads `link` still while `motion`
+  // is busy.
+  const link = useMemo<LinkApi>(
+    () => ({ stats: linkStats, connect, retry: canRetry ? retry : null, disconnect }),
+    [linkStats, connect, canRetry, retry, disconnect],
+  )
+
+  const motion = useMemo<MotionApi>(
     () => ({
-      conn,
-      connState,
-      connError,
-      ip,
-      lowState,
-      sportState,
-      traffic,
-      robotErrors,
-      stream,
-      videoOn,
-      audioOn,
       posing,
-      sensing,
-      motionMode,
-      reportedMode,
-      linkStats,
       setPosing: setPosingManually,
-      setMotionMode,
-      connect,
-      retry: canRetry ? retry : null,
-      disconnect,
-      setVideo,
-      setAudio,
+      mode: motionMode,
+      reportedMode,
+      setMode: setMotionMode,
       apiIdFor,
       sport,
       runAction,
@@ -493,15 +533,34 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       setEuler,
       stopMove,
       emergencyStop,
-      refreshMotionMode,
-      switchMotionMode,
-      clearTraffic,
-      clearErrors,
-      log,
+      refreshMode: refreshMotionMode,
+      switchMode: switchMotionMode,
     }),
-    [conn, connState, connError, ip, lowState, sportState, traffic, robotErrors, stream, videoOn, audioOn, posing, sensing, motionMode, reportedMode, linkStats, connect, canRetry, retry, disconnect, setVideo, setAudio, apiIdFor, sport, runAction, move, moveSticks, setEuler, setPosingManually, stopMove, emergencyStop, refreshMotionMode, switchMotionMode, clearTraffic, clearErrors, log],
+    [posing, setPosingManually, motionMode, reportedMode, apiIdFor, sport, runAction, move, moveSticks, setEuler, stopMove, emergencyStop, refreshMotionMode, switchMotionMode],
   )
 
-  return <Ctx.Provider value={api}>{children}</Ctx.Provider>
-}
+  const media = useMemo<MediaApi>(
+    () => ({ stream, videoOn, audioOn, setVideo, setAudio }),
+    [stream, videoOn, audioOn, setVideo, setAudio],
+  )
 
+  const diagnostics = useMemo<DiagnosticsApi>(
+    () => ({ traffic, errors: robotErrors, clearTraffic, clearErrors }),
+    [traffic, robotErrors, clearTraffic, clearErrors],
+  )
+
+  const api = useMemo<RobotApi>(
+    () => ({ conn, connState, connError, ip, log, link, motion, media, sensing, diagnostics }),
+    [conn, connState, connError, ip, log, link, motion, media, sensing, diagnostics],
+  )
+
+  // Rebuilt on every frame from the robot, which is why it is its own value and
+  // its own context rather than part of the one above.
+  const telemetry = useMemo<Telemetry>(() => ({ lowState, sportState }), [lowState, sportState])
+
+  return (
+    <Ctx.Provider value={api}>
+      <TelemetryCtx.Provider value={telemetry}>{children}</TelemetryCtx.Provider>
+    </Ctx.Provider>
+  )
+}

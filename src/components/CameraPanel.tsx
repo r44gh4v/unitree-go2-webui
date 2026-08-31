@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useRobot } from '../state/RobotContext'
+import { useRobot, useTelemetry } from '../state/RobotContext'
 import { MODE_NAMES } from '../lib/types'
 import {
   CameraIcon, CameraOffIcon, SpeakerIcon, SpeakerOffIcon,
@@ -8,7 +8,7 @@ import {
 
 /** What the central view shows before the camera is up: the connection's own state. */
 function CameraStatus({ connected, starting }: { connected: boolean; starting: boolean }) {
-  const { connState, connError, ip, disconnect, retry } = useRobot()
+  const { connState, connError, ip, link } = useRobot()
 
   if (connState === 'connecting' || connState === 'validating') {
     return (
@@ -16,7 +16,7 @@ function CameraStatus({ connected, starting }: { connected: boolean; starting: b
         <div className="spinner" />
         <b>{connState === 'validating' ? 'Authenticating' : 'Connecting'}</b>
         {connState === 'validating' ? 'Exchanging keys with the robot.' : `Reaching ${ip || 'the robot'}…`}
-        <button className="btn sm ghost" style={{ marginTop: 12 }} onClick={disconnect}>
+        <button className="btn sm ghost" style={{ marginTop: 12 }} onClick={link.disconnect}>
           Cancel
         </button>
       </div>
@@ -28,8 +28,8 @@ function CameraStatus({ connected, starting }: { connected: boolean; starting: b
       <div className="placeholder error">
         <b>Connection failed</b>
         <span className="reason">{connError ?? 'Unknown error'}</span>
-        {retry && (
-          <button className="btn sm" style={{ marginTop: 12 }} onClick={retry}>
+        {link.retry && (
+          <button className="btn sm" style={{ marginTop: 12 }} onClick={link.retry}>
             Try again
           </button>
         )}
@@ -66,7 +66,9 @@ function CameraStatus({ connected, starting }: { connected: boolean; starting: b
 
 /** Live view plus the controls that belong to it. Sized by the surrounding split. */
 export default function CameraPanel() {
-  const { conn, stream, videoOn, setVideo, audioOn, setAudio, connState, sportState, log } = useRobot()
+  const { conn, media, connState, log } = useRobot()
+  const { stream, videoOn, setVideo, audioOn, setAudio } = media
+  const { sportState } = useTelemetry()
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [muted, setMuted] = useState(true)

@@ -5,7 +5,9 @@ import { API_CATALOG } from '../lib/apiCatalog'
 
 /** Raw protocol view: message log, topic subscriptions, and a hand-built request sender. */
 export default function ConsolePanel() {
-  const { conn, traffic, clearTraffic, connState, linkStats, log } = useRobot()
+  const { conn, diagnostics, connState, link, log } = useRobot()
+  const { traffic, clearTraffic } = diagnostics
+  const linkStats = link.stats
   const connected = connState === 'connected'
   const logRef = useRef<HTMLDivElement>(null)
   const [follow, setFollow] = useState(true)

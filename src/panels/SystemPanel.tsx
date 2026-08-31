@@ -129,7 +129,8 @@ function decodeMaybeString<T>(value: unknown): T | null {
 
 /** Services, firmware details, and the on-board script runner. */
 export default function SystemPanel() {
-  const { conn, connState, ip, motionMode, log } = useRobot()
+  const { conn, connState, ip, motion, log } = useRobot()
+  const motionMode = motion.mode
   const connected = connState === 'connected'
 
   const [services, setServices] = useState<ServiceEntry[] | null>(null)
