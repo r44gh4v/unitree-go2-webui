@@ -14,7 +14,7 @@
     "build": "tsc --noEmit && vite build",
     "start": "node server/index.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node test/crypto.test.mjs && node test/voxel.test.mjs && node test/frames.test.mjs && node test/filetransfer.test.mjs && node test/reconnect.test.mjs && node test/correlation.test.mjs && node test/address.test.mjs && node test/actions.test.mjs && node test/cloudsession.test.mjs && node test/signalling.test.mjs && node test/signaling.test.mjs",
+    "test": "node test/crypto.test.mjs && node test/voxel.test.mjs && node test/frames.test.mjs && node test/filetransfer.test.mjs && node test/reconnect.test.mjs && node test/correlation.test.mjs && node test/address.test.mjs && node test/actions.test.mjs && node test/cloudsession.test.mjs && node test/signalling.test.mjs && node test/driveinput.test.mjs && node test/signaling.test.mjs",
     "test:protocol": "vite --port 5174 --strictPort --open /test/protocol.html"
   },
   "dependencies": {

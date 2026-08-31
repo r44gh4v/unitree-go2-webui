@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isTextEntry } from '../lib/focus'
+import { approach, demandFrom, type DriveVector } from '../lib/driveInput'
 import { useRobot } from '../state/RobotContext'
 
 const SEND_HZ = 20
@@ -7,26 +8,10 @@ const SEND_MS = 1000 / SEND_HZ
 /** Keep sending zeros briefly after release so the robot reliably settles. */
 const TRAILING_ZEROS = 4
 
-/**
- * Per-tick slew limits, as a fraction of full stick. A key goes from nothing to
- * fully pressed instantly, which asks the gait controller for a step change in
- * velocity that no physical stick could ever produce - the robot lurches
- * catching up. A little smoothing takes the edge off that, but at 0.15 it also
- * cost 300ms before the robot moved at all, which felt like lag. At 0.5 the
- * stick reaches full travel in two ticks - 100ms - and release is instant,
- * because letting go must never trail the key.
- */
-const RAMP_UP = 0.5
-const RAMP_DOWN = 1
-
 /** Below this a command is treated as rest. */
 const EPSILON = 0.004
 
-export interface DriveVector {
-  x: number
-  y: number
-  z: number
-}
+export type { DriveVector } from '../lib/driveInput'
 
 export interface DriveLimits {
   /** how far a full input deflects the stick, 0..1 */
@@ -50,14 +35,6 @@ const MAX_LATERAL = 1.0
 const EULER_LIMITS = { roll: 0.75, pitch: 0.75, yaw: 0.6 }
 
 const clamp = (v: number, limit: number) => Math.max(-limit, Math.min(limit, v))
-
-/** Step one axis toward its demand, no faster than the ramp allows. */
-function approach(current: number, target: number): number {
-  const rate = Math.abs(target) > Math.abs(current) ? RAMP_UP : RAMP_DOWN
-  const delta = target - current
-  if (Math.abs(delta) <= rate) return target
-  return current + Math.sign(delta) * rate
-}
 
 /**
  * Collects drive input from the sticks, the keyboard, and a gamepad, then sends
@@ -149,44 +126,13 @@ export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
     let shown = ''
 
     const tick = () => {
-      let { x, y, z } = stick.current
-
-      // keyboard overrides toward whichever direction is held
-      const k = keys.current
-      if (k.has('w') || k.has('arrowup')) y = 1
-      if (k.has('s') || k.has('arrowdown')) y = -1
-      if (k.has('a')) x = -1
-      if (k.has('d')) x = 1
-      if (k.has('q') || k.has('arrowleft')) z = 1
-      if (k.has('e') || k.has('arrowright')) z = -1
-
-      // gamepad wins when a stick is actually deflected
-      if (gamepadIndex.current !== null) {
-        const pad = navigator.getGamepads()[gamepadIndex.current]
-        if (pad) {
-          const dz = (v: number) => (Math.abs(v) < 0.12 ? 0 : v)
-          const gx = dz(pad.axes[0] ?? 0)
-          const gy = dz(-(pad.axes[1] ?? 0))
-          const gz = dz(-(pad.axes[2] ?? 0))
-          if (gx || gy) {
-            x = gx
-            y = gy
-          }
-          if (gz) z = gz
-        }
-      }
-
-      // Hold the translation demand inside the unit circle. Pressing W and D
-      // together used to ask for 1.41x the straight-line speed, which is enough
-      // on its own to make a diagonal walk look unsteady.
-      const magnitude = Math.hypot(x, y)
-      if (magnitude > 1) {
-        x /= magnitude
-        y /= magnitude
-      }
+      // What the operator is asking for, from every live input. The rules for
+      // combining them are stated in lib/driveInput.ts.
+      const pad = gamepadIndex.current !== null ? navigator.getGamepads()[gamepadIndex.current] : null
+      const demand = demandFrom({ stick: stick.current, keys: keys.current, pad })
 
       const cur = sent.current
-      const next = { x: approach(cur.x, x), y: approach(cur.y, y), z: approach(cur.z, z) }
+      const next = { x: approach(cur.x, demand.x), y: approach(cur.y, demand.y), z: approach(cur.z, demand.z) }
       sent.current = next
 
       const moving = Math.abs(next.x) > EPSILON || Math.abs(next.y) > EPSILON || Math.abs(next.z) > EPSILON
