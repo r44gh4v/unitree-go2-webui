@@ -12,7 +12,10 @@ import { lastServerInfo } from './serverInfo'
 import { decodeVoxelMesh, type VoxelMesh } from './voxel'
 import { ChunkAssembler, readFrame, type ChunkInfo } from './frames'
 import { nextRequestId } from './correlation'
+import { exchangeOffer, planRoute, type ConnectOptions, type Route, type SignallingDeps } from './signalling'
 import { FileTransfer } from './fileTransfer'
+
+export type { ConnectOptions } from './signalling'
 
 export type ConnState = 'idle' | 'connecting' | 'validating' | 'connected' | 'error' | 'closed'
 
@@ -108,26 +111,6 @@ interface Pending {
   timer: ReturnType<typeof setTimeout>
 }
 
-export interface ConnectOptions {
-  /** how to reach the robot; defaults to a direct address */
-  method?: 'ip' | 'serial' | 'ap' | 'cloud'
-  ip?: string
-  /** robot serial number, for serial discovery and cloud relay */
-  serial?: string
-  /** Unitree cloud access token, required for the cloud method */
-  token?: string
-  /** per-device AES key (32 hex chars), required on firmware >= 1.1.15 */
-  aesKey?: string
-  region?: string
-  /**
-   * How a cloud robot is reached. 'auto' (the default) checks whether the
-   * robot answers on the server's own network and connects directly when it
-   * does, falling back to the relay when it does not or when the direct
-   * attempt fails. 'relay' always goes through the cloud.
-   */
-  route?: 'auto' | 'relay'
-}
-
 /** Topics whose payloads arrive many times a second - kept out of the console log. */
 const NOISY_TOPICS = new Set<string>([
   TOPICS.LOW_STATE,
@@ -212,64 +195,23 @@ export class Go2Connection extends EventTarget {
     this.byteCount = 0
     this.setState('connecting')
 
-    // Same-network shortcut: a "cloud" robot that answers on the server's own
-    // LAN does not need the relay at all - signal it locally and the media
-    // stays on this network. A serverless deployment has no LAN, so the check
-    // is skipped there entirely rather than asked and answered no; a slow or
-    // hung check must never stall the real connect.
-    let viaShortcut = false
-    const serverHasLan = lastServerInfo()?.serverless !== true
-    if (method === 'cloud' && opts.serial && serverHasLan && (opts.route ?? 'auto') === 'auto') {
-      try {
-        const ctl = new AbortController()
-        const t = setTimeout(() => ctl.abort(), 4000)
-        const check = await fetch('/api/cloud/local-check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ serial: opts.serial }),
-          signal: ctl.signal,
-        })
-        clearTimeout(t)
-        const found = (await check.json()) as { ip?: string | null }
-        if (stale()) return
-        if (found.ip) {
-          method = 'ip'
-          targetIp = found.ip
-          viaShortcut = true
-          this.traffic('sys', `robot is on this network (${found.ip}) - connecting directly, skipping the relay`)
-        }
-      } catch {
-        /* no LAN answer; carry on through the cloud */
-      }
+    // How to reach this robot, and what the peer connection will need, is
+    // decided before there is a peer connection - the ICE configuration has to
+    // be in place before the offer. See lib/signalling.ts.
+    const deps: SignallingDeps = { fetch: (...a) => fetch(...a), serverHasLan: lastServerInfo()?.serverless !== true }
+    let route: Route
+    try {
+      route = await planRoute(opts, deps)
+    } catch (e) {
+      if (stale()) throw e
+      this.setState('error', (e as Error).message)
+      throw e
     }
+    if (stale()) return
+    route.notes.forEach((n) => this.traffic('sys', n))
+    this.ip = route.ip
 
-    this.ip = method === 'ap' ? '192.168.12.1' : (targetIp || (opts.serial ?? ''))
-
-    // A LAN robot is directly reachable, so an empty ICE config gathers fast.
-    // A cloud robot is behind NAT: the browser must relay through the same TURN
-    // server the robot uses, and that config has to be in place before the offer.
-    let iceServers: RTCIceServer[] = []
-    let turnServer: unknown = null
-    if (method === 'cloud') {
-      const turnResp = await fetch('/api/cloud/turn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serial: opts.serial ?? '', token: opts.token ?? '', region: opts.region ?? 'global' }),
-      })
-      if (stale()) return
-      if (!turnResp.ok) {
-        const body = (await turnResp.json().catch(() => ({}))) as { error?: string }
-        const msg = body.error ?? 'Could not get relay credentials from the cloud'
-        this.setState('error', msg)
-        throw new Error(msg)
-      }
-      const turnBody = (await turnResp.json()) as { turnServer: unknown; iceServers: RTCIceServer[] }
-      iceServers = turnBody.iceServers ?? []
-      turnServer = turnBody.turnServer
-      this.traffic('sys', `relay ready (${iceServers.length} ICE server${iceServers.length === 1 ? '' : 's'})`)
-    }
-
-    const pc = new RTCPeerConnection({ iceServers })
+    const pc = new RTCPeerConnection({ iceServers: route.iceServers })
     this.pc = pc
     pc.addTransceiver('video', { direction: 'recvonly' })
     pc.addTransceiver('audio', { direction: 'recvonly' })
@@ -323,49 +265,41 @@ export class Go2Connection extends EventTarget {
     const offer = await pc.createOffer()
     await pc.setLocalDescription(offer)
     // Relay candidates take longer to gather than host ones, so give cloud more time.
-    await this.waitIceGathering(pc, method === 'cloud' ? 6000 : 2500)
+    await this.waitIceGathering(pc, route.method === 'cloud' ? 6000 : 2500)
     if (stale()) {
       pc.close()
       return
     }
 
-    const resp = await fetch('/api/connect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        method,
-        ip: targetIp,
-        serial: opts.serial ?? '',
-        token: opts.token ?? '',
-        aesKey: opts.aesKey ?? '',
-        region: opts.region ?? 'global',
-        turnServer,
-        sdp: { sdp: pc.localDescription!.sdp, type: pc.localDescription!.type },
-      }),
-    })
-    if (!resp.ok) {
-      const body = (await resp.json().catch(() => ({}))) as { error?: string }
-      const msg = body.error ?? `Signaling failed with HTTP ${resp.status}`
+    let exchanged
+    try {
+      exchanged = await exchangeOffer(
+        { sdp: pc.localDescription!.sdp, type: pc.localDescription!.type },
+        route,
+        opts,
+        deps,
+      )
+    } catch (e) {
+      const msg = (e as Error).message
       // A superseded attempt must not report its failure over a live session.
-      if (stale()) throw new Error(msg)
-      // The direct attempt was an optimisation; its failure is not the user's
-      // problem. Retry the same connect through the relay before giving up.
-      if (viaShortcut) {
+      if (stale()) throw e
+      // The direct attempt was an optimisation; its failure is not the
+      // operator's problem. Try the same connect through the relay first.
+      if (route.viaShortcut) {
         pc.close()
         this.traffic('sys', `direct connect failed (${msg}) - retrying through the cloud relay`)
         return this.connect({ ...opts, route: 'relay' })
       }
       this.setState('error', msg)
-      throw new Error(msg)
+      throw e
     }
-    const answer = (await resp.json()) as { sdp: string; type: RTCSdpType; ip?: string }
     if (stale()) {
       pc.close()
       return
     }
-    if (answer.ip) this.ip = answer.ip
-    await pc.setRemoteDescription(new RTCSessionDescription(answer))
-    this.traffic('sys', `SDP answer applied (${method}${this.ip ? ` · ${this.ip}` : ''})`)
+    if (exchanged.ip) this.ip = exchanged.ip
+    await pc.setRemoteDescription(new RTCSessionDescription(exchanged.answer))
+    this.traffic('sys', `SDP answer applied (${route.method}${this.ip ? ` · ${this.ip}` : ''})`)
 
     // Signalling succeeding only means the robot took the offer. If the data
     // channel never opens or validation never comes back, nothing else here
