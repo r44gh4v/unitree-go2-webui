@@ -14,10 +14,21 @@
 import type { ActionSpec, MotionMode } from './constants.ts'
 
 /**
- * Which service to borrow from when the running one has no entry, newest
- * first: a robot running mcf is likelier to accept an mcf id than a legacy one.
+ * Which service to borrow from when the running one has no entry, per family.
+ *
+ * mcf ids only exist on the unified service - sending one to a robot running
+ * normal/ai/advanced is asking for a command id that is definitionally not on
+ * that service's manifest, worse than borrowing from a sibling legacy service
+ * that at least shares an id space. So a legacy robot borrows from the other
+ * two legacy services first, and only reaches for mcf as a last resort; an mcf
+ * robot has no legacy siblings to prefer and goes straight to legacy.
  */
-const BORROW_ORDER: MotionMode[] = ['mcf', 'ai', 'advanced', 'normal']
+const BORROW_ORDER: Record<MotionMode, MotionMode[]> = {
+  mcf: ['normal', 'ai', 'advanced'],
+  normal: ['ai', 'advanced', 'mcf'],
+  ai: ['advanced', 'normal', 'mcf'],
+  advanced: ['ai', 'normal', 'mcf'],
+}
 
 export type Standing =
   /** The running service lists this action. */
@@ -47,7 +58,7 @@ export function resolveAction(action: ActionSpec, running: MotionMode): Availabi
     return { apiId: exact, standing: 'listed', usable: true, untested: false, borrowedFrom: null, why: null }
   }
 
-  for (const mode of BORROW_ORDER) {
+  for (const mode of BORROW_ORDER[running]) {
     const id = action.ids[mode]
     if (id === undefined) continue
     return {

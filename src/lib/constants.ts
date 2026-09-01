@@ -175,9 +175,10 @@ export const SPORT_CMD = {
   LeftFlip: 1042,
   RightFlip: 1043,
   BackFlip: 1044,
+  // FreeWalk used to be listed here too, at the same 1045 as LeadFollow - one
+  // id, two names. The reference lists FreeWalk only as 2045 (SPORT_CMD_MCF),
+  // which is what ACTIONS.FreeWalk already sends.
   LeadFollow: 1045,
-  FreeWalk: 1045,
-  Standup: 1050,
   CrossWalk: 1051,
   Handstand: 1301,
   CrossStep: 1302,
@@ -216,7 +217,7 @@ export const SPORT_CMD_MCF = {
   FrontJump: 1031,
   FrontPounce: 1032,
   GetState: 1034,
-  Heart: 1036,
+  FingerHeart: 1036,
   SwitchGait: 1011,
   Wallow: 1021,
   WalkStair: 1049,
@@ -266,22 +267,41 @@ export interface ActionSpec {
    * answered from here instead.
    */
   kind: ActionKind
-  group: 'posture' | 'gesture' | 'gait' | 'dynamic' | 'assist'
+  group: 'posture' | 'gesture' | 'gait' | 'modifier' | 'dynamic' | 'assist'
   /** moves that need clear space - marked in the grid, never blocked */
   risky?: boolean
   note?: string
+  /**
+   * What the robot needs running before this action does anything real. The
+   * robot can accept a command like this and then silently do nothing -
+   * FreeAvoid with no lidar spinning is the case that motivated this field.
+   * The console satisfies what it can before sending, rather than firing
+   * blind and reporting nothing when the precondition was never met.
+   */
+  requires?: { lidar?: boolean; service?: string }
 }
 
 export const ACTIONS: ActionSpec[] = [
   // stand and rest
-  { name: 'RecoveryStand', label: 'Stand up', ids: { normal: 1006, ai: 1006, mcf: 1006 }, kind: 'settles', group: 'posture', note: 'Gets up from lying down or from a fall, ready to walk' },
-  { name: 'StandDown', label: 'Lie down', ids: { normal: 1005, ai: 1005, mcf: 1005 }, kind: 'settles', group: 'posture', note: 'Folds down and rests on the ground' },
+  //
+  // Rise (RiseSit, api 1010) used to sit alongside this as its own tile. It
+  // is still a real, distinct command - SPORT_CMD.RiseSit and the Console's
+  // API list still carry it - but from any posture RecoveryStand also gets
+  // the robot up, so two get-up tiles were the same idea twice on the grid.
+  { name: 'RecoveryStand', label: 'Stand up', ids: { normal: 1006, ai: 1006, mcf: 1006 }, kind: 'settles', group: 'posture', note: 'Gets the robot standing and ready to walk, whether it is lying down, sitting, or has fallen' },
+  { name: 'StandDown', label: 'Lie down', ids: { normal: 1005, ai: 1005, mcf: 1005 }, kind: 'settles', group: 'posture', note: 'Folds down under control and rests on the ground - the deliberate way down' },
   { name: 'Sit', label: 'Sit', ids: { normal: 1009, mcf: 1009 }, kind: 'settles', group: 'posture', note: 'Sits back on the hindquarters' },
-  { name: 'RiseSit', label: 'Rise', ids: { normal: 1010, mcf: 1010 }, kind: 'oneShot', group: 'posture', note: 'Gets up out of a sit' },
-  { name: 'Damp', label: 'Go limp', ids: { normal: 1001, ai: 1001, mcf: 1001 }, kind: 'settles', group: 'posture', note: 'Motors go slack and the robot settles to the floor' },
+  { name: 'Damp', label: 'Go limp', ids: { normal: 1001, ai: 1001, mcf: 1001 }, kind: 'settles', group: 'posture', note: 'Motors go slack all at once and the robot settles wherever it is - not controlled, and what the STOP button sends' },
   { name: 'StopMove', label: 'Stand still', ids: { normal: 1003, ai: 1003, mcf: 1003 }, kind: 'settles', group: 'posture', note: 'Halts locomotion. Also leaves pose mode and most gaits.' },
 
   // walking styles
+  //
+  // ClassicWalk (2049) and TrotRun (1062) are real SDK ids
+  // (ROBOT_SPORT_API_ID_CLASSICWALK, TrotRun()) but neither is ever sent by
+  // the reference app - its "Run" row sends SwitchGait 1011 {"data":1}
+  // instead. Left as-is pending a hardware check; if the robot refuses
+  // either, switch it to the id the app actually uses rather than guessing
+  // again. StaticWalk (1061) matches the app exactly.
   { name: 'ClassicWalk', label: 'Normal walk', ids: { mcf: 2049 }, kind: 'gait', group: 'gait', note: 'The everyday walking gait' },
   { name: 'StaticWalk', label: 'Careful walk', ids: { mcf: 1061 }, kind: 'gait', group: 'gait', note: 'Slow and deliberate, keeping three feet down' },
   { name: 'FreeWalk', label: 'Terrain walk', ids: { mcf: 2045 }, kind: 'gait', group: 'gait', note: 'Picks its own footing over uneven ground' },
@@ -289,10 +309,16 @@ export const ACTIONS: ActionSpec[] = [
   { name: 'RageMode', label: 'Sprint', ids: { mcf: 2059 }, kind: 'gait', group: 'gait', risky: true, note: 'Fastest running mode. Needs a lot of open space.' },
   { name: 'WalkStair', label: 'Stair climbing', ids: { mcf: 1049 }, kind: 'gait', group: 'gait', note: 'For stairs and tall obstacles. Approach steps straight on.' },
   { name: 'CrossStep', label: 'Crossover step', ids: { advanced: 1302, mcf: 2051 }, kind: 'gait', group: 'gait', risky: true, note: 'Crosses the legs while stepping sideways' },
-  { name: 'FreeBound', label: 'Terrain hop', ids: { mcf: 2046 }, kind: 'gait', group: 'gait', risky: true, note: 'Bounding gait that adapts to rough ground' },
-  { name: 'FreeJump', label: 'Auto jump', ids: { mcf: 2047 }, kind: 'gait', group: 'gait', risky: true, note: 'Keeps walking and jumps obstacles it spots by itself' },
-  { name: 'EconomicGait', label: 'Battery saver', ids: { normal: 1035, mcf: 1063 }, kind: 'latching', group: 'gait', note: 'Energy-saving walk that stretches the battery' },
-  { name: 'ContinuousGait', label: 'March', ids: { normal: 1019, mcf: 1019 }, kind: 'latching', group: 'gait', note: 'Keeps stepping instead of standing still' },
+  { name: 'FreeBound', label: 'Terrain hop', ids: { mcf: 2046 }, kind: 'gait', group: 'gait', risky: true, note: 'Bounding gait that adapts to rough, uneven ground without stopping to plan around it' },
+  { name: 'FreeJump', label: 'Auto jump', ids: { mcf: 2047 }, kind: 'gait', group: 'gait', risky: true, note: 'Keeps walking and jumps over obstacles it spots by itself, rather than routing around them' },
+
+  // walk modifiers - stack on top of a gait rather than replacing it, so they
+  // do not belong in the exclusive group above. EconomicGait's mcf id was
+  // 1063 (SPORT_CMD_MCF.EconomicGait, a real constant); the reference app's
+  // own "Endurance" row sends 1035 on every service including mcf, so that is
+  // what goes on the wire now - 1063 stays defined for reference.
+  { name: 'EconomicGait', label: 'Battery saver', ids: { normal: 1035, mcf: 1035 }, kind: 'latching', group: 'modifier', note: 'Energy-saving walk that stretches the battery. Stacks on top of whatever gait is already running.' },
+  { name: 'ContinuousGait', label: 'March', ids: { normal: 1019, mcf: 1019 }, kind: 'latching', group: 'modifier', note: 'Keeps stepping instead of standing still between commands. Stacks on top of whatever gait is already running.' },
 
   // tricks and greetings
   { name: 'Hello', label: 'Wave', ids: { normal: 1016, ai: 1016, mcf: 1016 }, kind: 'oneShot', group: 'gesture', note: 'Lifts a front paw and waves' },
@@ -312,8 +338,19 @@ export const ACTIONS: ActionSpec[] = [
   { name: 'BackStand', label: 'Hind stand', ids: { mcf: 2050 }, kind: 'latching', group: 'dynamic', risky: true, note: 'Rears up onto the back legs, front paws in the air. The opposite of a handstand.' },
 
   // follows you or steers itself
+  //
+  // LeadFollow's ai id (1045) and Handstand's ai id (1039, above) are absent
+  // from unitree_ui/src/protocol/topics.ts - the reference has no 1045 at all,
+  // and lists 1039 under a different name (StandOut). Left as-is anyway:
+  // confirmed working on hardware, so the gap is the reference's, not ours.
   { name: 'LeadFollow', label: 'Walk with me', ids: { ai: 1045, mcf: 2056 }, kind: 'latching', group: 'assist', note: 'Walks alongside and follows a person' },
-  { name: 'FreeAvoid', label: 'Auto avoid', ids: { mcf: 2048 }, kind: 'latching', group: 'assist', note: 'Steers around obstacles on its own' },
+  // Autonomous roaming, not the same thing as the Drive tab's "Obstacle
+  // avoidance" switch - that one only filters the commands you give it; this
+  // one drives the robot itself. No legacy (normal/ai/advanced) id is
+  // corroborated by either reference source, so on those services this
+  // borrows the mcf id and the robot most likely answers "API not
+  // registered" - do not invent a legacy id here without a hardware capture.
+  { name: 'FreeAvoid', label: 'Auto avoid', ids: { mcf: 2048 }, kind: 'latching', group: 'assist', requires: { lidar: true, service: 'obstacles_avoid' }, note: 'Drives itself, steering around what it sees. Needs the lidar and the avoidance service, which the console starts for it.' },
 
   // Sits with the postures: it is a way of standing, and while it is on the
   // drive sticks lean the body instead of walking it.
@@ -323,6 +360,7 @@ export const ACTIONS: ActionSpec[] = [
 export const ACTION_GROUPS: { key: ActionSpec['group']; label: string; note: string }[] = [
   { key: 'posture', label: 'Stand and rest', note: 'Postures and holding still' },
   { key: 'gait', label: 'Walking styles', note: 'Picking one replaces the last' },
+  { key: 'modifier', label: 'Walk modifiers', note: 'Stack on top of a gait rather than replacing it' },
   { key: 'gesture', label: 'Tricks & greetings', note: 'One-off routines' },
   { key: 'dynamic', label: 'Jumps & flips', note: 'Needs two metres of clear, soft, level floor' },
   { key: 'assist', label: 'Follow and avoid', note: 'The robot steers itself' },
@@ -354,9 +392,9 @@ export const VUI_API = {
   SET_BRIGHTNESS: 1005,
   GET_BRIGHTNESS: 1006,
   SET_COLOR: 1007,
-  /** Hands the light back to the firmware, clearing a set colour. */
+  /** Hands the light back to the firmware, clearing a set colour. Used to be
+   *  listed twice under two names (LED_OFF was the other) - one id. */
   RELEASE_COLOR: 1008,
-  LED_OFF: 1008,
 } as const
 
 export const VUI_COLORS = ['white', 'red', 'yellow', 'blue', 'green', 'cyan', 'purple'] as const

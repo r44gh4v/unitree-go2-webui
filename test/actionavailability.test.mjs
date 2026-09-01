@@ -42,16 +42,48 @@ console.log('[availability] the running service does not list it')
   check('explains itself', r.why.includes('mcf') && r.why.includes('normal'), true)
 }
 {
-  // Preference order when several services have one: the newest first, because
-  // a robot running mcf is likelier to accept an mcf id than a legacy one.
+  // Preference order when several services have one, and an exact match always
+  // wins regardless of order.
   const r = resolveAction(act({ normal: 1001, ai: 1500, advanced: 1300, mcf: 2001 }), 'ai')
   check('an exact match still wins over the order', r.apiId, 1500)
-  const b = resolveAction(act({ normal: 1001, advanced: 1300, mcf: 2001 }), 'ai')
-  check('otherwise the newest service is preferred', b.borrowedFrom, 'mcf')
-  const c = resolveAction(act({ normal: 1001, advanced: 1300 }), 'ai')
-  check('then advanced', c.borrowedFrom, 'advanced')
-  const d = resolveAction(act({ normal: 1001 }), 'ai')
-  check('then normal', d.borrowedFrom, 'normal')
+}
+
+console.log('[availability] mcf borrows from legacy before legacy borrows from mcf')
+{
+  // mcf ids do not exist on a legacy service at all - sending one there is
+  // sending a command id that is definitionally not on that service's
+  // manifest. A robot running mcf has no such problem borrowing from a legacy
+  // sibling, so it is legacy that is preferred, in both directions.
+  const fromMcf = resolveAction(act({ normal: 1001, ai: 1500, advanced: 1300 }), 'mcf')
+  check('mcf prefers normal first', fromMcf.borrowedFrom, 'normal')
+  const fromMcfNoNormal = resolveAction(act({ ai: 1500, advanced: 1300 }), 'mcf')
+  check('mcf then ai', fromMcfNoNormal.borrowedFrom, 'ai')
+  const fromMcfOnlyAdvanced = resolveAction(act({ advanced: 1300 }), 'mcf')
+  check('mcf then advanced', fromMcfOnlyAdvanced.borrowedFrom, 'advanced')
+}
+{
+  const fromNormal = resolveAction(act({ ai: 1500, advanced: 1300, mcf: 2001 }), 'normal')
+  check('normal prefers ai first', fromNormal.borrowedFrom, 'ai')
+  const fromNormalNoAi = resolveAction(act({ advanced: 1300, mcf: 2001 }), 'normal')
+  check('normal then advanced', fromNormalNoAi.borrowedFrom, 'advanced')
+  const fromNormalOnlyMcf = resolveAction(act({ mcf: 2001 }), 'normal')
+  check('normal reaches mcf only as a last resort', fromNormalOnlyMcf.borrowedFrom, 'mcf')
+}
+{
+  const fromAi = resolveAction(act({ normal: 1001, advanced: 1300, mcf: 2001 }), 'ai')
+  check('ai prefers advanced first', fromAi.borrowedFrom, 'advanced')
+  const fromAiNoAdvanced = resolveAction(act({ normal: 1001, mcf: 2001 }), 'ai')
+  check('ai then normal', fromAiNoAdvanced.borrowedFrom, 'normal')
+  const fromAiOnlyMcf = resolveAction(act({ mcf: 2001 }), 'ai')
+  check('ai reaches mcf only as a last resort', fromAiOnlyMcf.borrowedFrom, 'mcf')
+}
+{
+  const fromAdvanced = resolveAction(act({ normal: 1001, ai: 1500, mcf: 2001 }), 'advanced')
+  check('advanced prefers ai first', fromAdvanced.borrowedFrom, 'ai')
+  const fromAdvancedNoAi = resolveAction(act({ normal: 1001, mcf: 2001 }), 'advanced')
+  check('advanced then normal', fromAdvancedNoAi.borrowedFrom, 'normal')
+  const fromAdvancedOnlyMcf = resolveAction(act({ mcf: 2001 }), 'advanced')
+  check('advanced reaches mcf only as a last resort', fromAdvancedOnlyMcf.borrowedFrom, 'mcf')
 }
 
 console.log('[availability] nothing known at all')

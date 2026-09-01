@@ -3,6 +3,7 @@ import { Go2Connection, unwrapResponse, type ApiResponse, type ConnectOptions, t
 import {
   DATA_CHANNEL_TYPE,
   MOTION_SWITCHER_API,
+  ROBOT_STATE_API,
   SPORT_CMD,
   SPORT_CMD_MCF,
   TOPICS,
@@ -318,16 +319,35 @@ export function RobotProvider({ children }: { children: ReactNode }) {
    */
   const availabilityOf = useCallback((a: ActionSpec) => resolveAction(a, motionMode), [motionMode])
 
+  /**
+   * Best-effort: get what `requires` asks for moving before the action itself
+   * goes out. Never blocks the send on failure - a service that refuses to
+   * start is the robot's answer to report, not a reason to withhold the
+   * command that would have surfaced it.
+   */
+  const satisfyRequirements = useCallback(
+    async (requires: NonNullable<ActionSpec['requires']>) => {
+      if (requires.lidar && !sensing.lidarOn) sensing.setLidar(true)
+      if (requires.service) {
+        await conn
+          .request(TOPICS.ROBOT_STATE, ROBOT_STATE_API.SERVICE_SWITCH, { name: requires.service, switch: 1 })
+          .catch(() => undefined)
+      }
+    },
+    [conn, sensing],
+  )
+
   const runAction = useCallback(
-    (a: ActionSpec, toggleOn = true) => {
+    async (a: ActionSpec, toggleOn = true) => {
       const stands = resolveAction(a, motionMode)
       if (stands.apiId === null) {
         return Promise.reject(new Error(`${a.label} has no known command id`))
       }
       const parameter = sendsToggleData(a.kind) ? { data: toggleOn } : a.parameter
+      if (toggleOn && a.requires) await satisfyRequirements(a.requires)
       return conn.request(TOPICS.SPORT_MOD, stands.apiId, parameter)
     },
-    [conn, motionMode],
+    [conn, motionMode, satisfyRequirements],
   )
 
   const move = useCallback(

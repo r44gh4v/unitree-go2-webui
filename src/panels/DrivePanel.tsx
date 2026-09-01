@@ -107,13 +107,14 @@ export default function DrivePanel() {
           className={`toggle${avoidance ? ' on' : ''}`}
           style={{ marginTop: 8 }}
           title={
-            avoidance === null
+            (avoidance === null
               ? 'The robot has not reported this state yet. You can still set it'
               : avoidance
-                ? 'On: the robot refuses drive commands that would hit something'
+                ? 'On: the robot refuses the drive commands you give it if they would hit something'
                 : lidarOn
                   ? 'Off: the robot will drive into things if you steer it into them'
-                  : 'Off. Turning it on starts the lidar, which it needs to see'
+                  : 'Off. Turning it on starts the lidar, which it needs to see') +
+            ' - this only filters your own steering. For the robot to drive itself around obstacles, use Auto avoid in the Actions tab.'
           }
         >
           <span className="toggle-label">

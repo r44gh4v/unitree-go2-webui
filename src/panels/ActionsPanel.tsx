@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRobot } from '../state/RobotContext'
+import { useRobot, useTelemetry } from '../state/RobotContext'
 import { ACTIONS, ACTION_GROUPS, type ActionSpec } from '../lib/actions'
 import { actionIconSvg } from '../lib/actionIcons'
 import { SPORT_CMD, SPORT_CMD_MCF } from '../lib/constants'
 import { clearsEverything, isExclusive, staysLit } from '../lib/actionKinds'
+import { actionNameFor, decodeMotionState, TRACKED_ACTION_NAMES } from '../lib/motionState'
 import type { Availability } from '../lib/actionAvailability'
 
 /** How long a refusal stays on the tile before it goes quiet again. */
@@ -28,17 +29,42 @@ function describe(a: ActionSpec, stands: Availability, phase: Phase, reason?: st
 export default function ActionsPanel() {
   const { connState, motion, log } = useRobot()
   const { mode: motionMode, runAction, sport, availabilityOf, posing, setPosing } = motion
+  const { sportState } = useTelemetry()
   const connected = connState === 'connected'
   const [phase, setPhase] = useState<Record<string, Phase>>({})
   const [reason, setReason] = useState<Record<string, string>>({})
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  /**
+   * What the robot itself reports as running, translated to a tile name -
+   * lib/motionState.ts. `phase` is left to carry only what this panel just
+   * did (pending, failed); whether a staysLit tile is actually *on* is a
+   * question telemetry answers, not something a successful send gets to
+   * assert on its own. A mode that engaged silently used to look identical to
+   * one that never fired, because both just left the tile however the last
+   * click set it.
+   */
+  const [engaged, setEngaged] = useState<string | null>(null)
+  const mcfLastState = useRef('freeWalk')
+
+  const isOn = useCallback((name: string) => engaged === name || phase[name] === 'on', [engaged, phase])
 
   // A dropped link, or a different motion service, invalidates everything this
   // panel believes about the robot. Start again rather than showing a stale on.
   useEffect(() => {
     setPhase({})
     setReason({})
+    setEngaged(null)
+    mcfLastState.current = 'freeWalk'
   }, [connected, motionMode])
+
+  useEffect(() => {
+    if (!connected || !sportState) return
+    const { state, mcfLastState: next } = decodeMotionState(sportState, motionMode, mcfLastState.current)
+    mcfLastState.current = next
+    const name = actionNameFor(state)
+    setEngaged((prev) => (prev === name ? prev : name))
+  }, [connected, sportState, motionMode])
 
   useEffect(() => {
     const t = timers.current
@@ -61,7 +87,7 @@ export default function ActionsPanel() {
       return
     }
 
-    const wasOn = phase[a.name] === 'on'
+    const wasOn = isOn(a.name)
     const next = staysLit(a.kind) ? !wasOn : true
     setPhase((p) => ({ ...p, [a.name]: 'pending' }))
 
@@ -74,17 +100,23 @@ export default function ActionsPanel() {
           setPosing(false)
         } else if (isExclusive(a.kind) && next) {
           // The robot walks one way at a time, so lighting a gait releases the
-          // others rather than leaving two lit.
+          // others rather than leaving two lit. Every other exclusive tile's
+          // optimism is cleared unconditionally - telemetry may have nothing
+          // to say about the gait that just stopped, so nothing else will.
           setPhase((p) => {
             const out = { ...p }
             for (const other of ACTIONS) {
               if (isExclusive(other.kind) && other.name !== a.name) out[other.name] = 'idle'
             }
-            out[a.name] = 'on'
+            // Telemetry can identify most gaits and is authority for those;
+            // only the plain walk/run tiles it cannot tell apart still rely
+            // on this optimistic mark.
+            out[a.name] = TRACKED_ACTION_NAMES.has(a.name) ? 'idle' : 'on'
             return out
           })
         } else {
-          settle(a.name, staysLit(a.kind) && next ? 'on' : 'idle')
+          const showOn = staysLit(a.kind) && next && !TRACKED_ACTION_NAMES.has(a.name)
+          settle(a.name, showOn ? 'on' : 'idle')
         }
         log(`${a.label}${staysLit(a.kind) ? (next ? ' on' : ' off') : ''} - the robot accepted it`)
       })
@@ -134,7 +166,13 @@ export default function ActionsPanel() {
                 const untested = connected && stands.untested
                 // Pose mode is shared state - the drive loop reads it too - so
                 // it comes from the context rather than this panel's own map.
-                const p: Phase = a.kind === 'pose' ? (posing ? 'on' : 'idle') : (phase[a.name] ?? 'idle')
+                // pending/failed are what this panel just did and outrank
+                // telemetry; otherwise isOn() decides, not the raw phase map.
+                const rawPhase = phase[a.name]
+                const p: Phase =
+                  a.kind === 'pose' ? (posing ? 'on' : 'idle')
+                    : rawPhase === 'pending' || rawPhase === 'failed' ? rawPhase
+                      : isOn(a.name) ? 'on' : 'idle'
                 const icon = actionIconSvg(a.name)
                 return (
                   <button

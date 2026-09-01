@@ -97,20 +97,29 @@ export interface CloudRobot {
   aesKey: string
 }
 
+/**
+ * Transcribed from unitree_ui's GO2_MODE_MAP (legacy normal/advanced/ai
+ * `mode` enum - see lib/motionState.ts, which shares this table). The
+ * previous version guessed labels for 4, 9 and 11-13 with nothing to back
+ * them; a mode absent here falls back to the raw number in StatusPanel rather
+ * than showing an invented name.
+ */
 export const MODE_NAMES: Record<number, string> = {
   0: 'idle',
   1: 'balance stand',
   2: 'pose',
   3: 'locomotion',
-  4: 'reserved',
   5: 'lie down',
-  6: 'jointLock',
+  6: 'joint lock',
   7: 'damping',
   8: 'recovery stand',
-  9: 'reserved',
+  9: 'free walk',
   10: 'sit',
-  11: 'front flip',
-  12: 'front jump',
-  13: 'front pounce',
+  15: 'free bound',
+  16: 'free jump',
+  17: 'free avoid',
+  18: 'stair',
+  19: 'stand',
+  20: 'cross step',
 }
 

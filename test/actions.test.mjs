@@ -20,10 +20,14 @@ const { KINDS, clearsEverything, isExclusive, sendsToggleData } = await import(
 import { makeChecker } from './harness.mjs'
 const { check, finish } = makeChecker()
 
-/** [name, kind, sends {data: bool} on the wire] as the table behaved before. */
+/**
+ * [name, kind, sends {data: bool} on the wire] as the table behaved before.
+ * Rise (RiseSit) is gone from here: RecoveryStand covers the same "get up"
+ * idea from any posture, so keeping both was the same tile twice.
+ */
 const EXPECTED = [
   ['RecoveryStand', 'settles', false], ['StandDown', 'settles', false], ['Sit', 'settles', false],
-  ['RiseSit', 'oneShot', false], ['Damp', 'settles', false], ['StopMove', 'settles', false],
+  ['Damp', 'settles', false], ['StopMove', 'settles', false],
   ['ClassicWalk', 'gait', true], ['StaticWalk', 'gait', true], ['FreeWalk', 'gait', true],
   ['TrotRun', 'gait', true], ['RageMode', 'gait', true], ['WalkStair', 'gait', true],
   ['CrossStep', 'gait', true], ['FreeBound', 'gait', true], ['FreeJump', 'gait', true],
@@ -90,6 +94,52 @@ console.log('[actions] the table has not drifted')
   check('no duplicate names', ACTIONS.length - new Set(ACTIONS.map((a) => a.name)).size, 0)
   check('every action has at least one api id', ACTIONS.filter((a) => !Object.keys(a.ids ?? {}).length).map((a) => a.name), [])
   check('every action has a group', ACTIONS.filter((a) => !a.group).map((a) => a.name), [])
+}
+
+console.log('[actions] no two tiles can send the same request')
+{
+  const constPath = path.join(here, '..', 'src', 'lib', 'constants.ts')
+  const { ACTIONS } = await import('file://' + constPath.replace(/\\/g, '/'))
+
+  // Every action goes out on the same topic (rt/api/sport/request), so two
+  // names sharing an id for one motion mode is two grid tiles that are, on
+  // the wire, one command - the LeadFollow/FreeWalk collision that motivated
+  // this check. `resolveAction`'s borrowing means an id absent from the
+  // running mode can still reach the robot via another mode's id, so this
+  // checks every mode a tile lists, not just the one it happens to be exact for.
+  for (const mode of ['normal', 'ai', 'advanced', 'mcf']) {
+    const byId = new Map()
+    for (const a of ACTIONS) {
+      const id = a.ids[mode]
+      if (id === undefined) continue
+      const names = byId.get(id) ?? []
+      names.push(a.name)
+      byId.set(id, names)
+    }
+    const collisions = [...byId.entries()].filter(([, names]) => names.length > 1)
+    check(`no id collision among ${mode} tiles`, collisions, [])
+  }
+}
+
+console.log('[actions] no id table defines the same command twice')
+{
+  const constPath = path.join(here, '..', 'src', 'lib', 'constants.ts')
+  const { SPORT_CMD, SPORT_CMD_MCF, VUI_API, AUDIO_API } = await import('file://' + constPath.replace(/\\/g, '/'))
+
+  const dupes = (table) => {
+    const byValue = new Map()
+    for (const [name, id] of Object.entries(table)) {
+      const names = byValue.get(id) ?? []
+      names.push(name)
+      byValue.set(id, names)
+    }
+    return [...byValue.entries()].filter(([, names]) => names.length > 1)
+  }
+
+  check('SPORT_CMD has no two names for one id', dupes(SPORT_CMD), [])
+  check('SPORT_CMD_MCF has no two names for one id', dupes(SPORT_CMD_MCF), [])
+  check('VUI_API has no two names for one id', dupes(VUI_API), [])
+  check('AUDIO_API has no two names for one id', dupes(AUDIO_API), [])
 }
 
 finish()
