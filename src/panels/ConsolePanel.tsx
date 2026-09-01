@@ -98,21 +98,20 @@ export default function ConsolePanel() {
       <p className="eyebrow">Command catalogue</p>
       <p className="note">Picking one fills the form below</p>
       <input
-        className="input"
+        className="input mb-3"
         title="Search every documented command; click a result to fill the form"
         placeholder="Search by name or id"
         value={apiSearch}
         onChange={(e) => setApiSearch(e.target.value)}
-        style={{ marginBottom: 8 }}
       />
       {apiSearch.trim() && (
-        <div style={{ maxHeight: 240, overflowY: 'auto', marginBottom: 10 }}>
+        <div className="mb-4" style={{ maxHeight: 240, overflowY: 'auto' }}>
           {matchingApis.length === 0 && <p className="note">Nothing matches that</p>}
           {matchingApis.map((e) => (
             <button
               key={`${e.group}-${e.name}-${e.apiId}`}
-              className="btn sm block"
-              style={{ justifyContent: 'space-between', marginBottom: 4 }}
+              className="btn sm block mb-1"
+              style={{ justifyContent: 'space-between' }}
               title={e.note ?? e.topic}
               onClick={() => {
                 setTopic(e.topic)
@@ -171,7 +170,7 @@ export default function ConsolePanel() {
       </div>
 
       {result && (
-        <pre className="log" style={{ marginTop: 8, maxHeight: 220 }}>
+        <pre className="log mt-3" style={{ maxHeight: 220 }}>
           {result}
         </pre>
       )}
@@ -183,7 +182,7 @@ export default function ConsolePanel() {
       {SUBSCRIBABLE_TOPICS.map((t) => {
         const on = watching.includes(t.topic)
         return (
-          <div key={t.topic} style={{ marginBottom: 6 }}>
+          <div key={t.topic} className="mb-2">
             <button
               className={`btn sm block${on ? ' on' : ''}`}
               style={{ justifyContent: 'space-between' }}
@@ -195,7 +194,7 @@ export default function ConsolePanel() {
               <span style={{ fontSize: 10, opacity: 0.7 }}>{on ? 'watching' : t.topic}</span>
             </button>
             {on && watched[t.topic] !== undefined && (
-              <pre className="log" style={{ maxHeight: 140, marginTop: 4 }}>
+              <pre className="log mt-1" style={{ maxHeight: 140 }}>
                 {JSON.stringify(watched[t.topic], null, 1).slice(0, 4000)}
               </pre>
             )}
@@ -206,7 +205,7 @@ export default function ConsolePanel() {
       <div className="divider" />
       <p className="eyebrow">Message log</p>
 
-      <div className="btn-row" style={{ marginBottom: 8 }}>
+      <div className="btn-row mb-3">
         <input
           className="input"
           style={{ flex: 1, minWidth: 120 }}
@@ -239,7 +238,7 @@ export default function ConsolePanel() {
         ))}
       </div>
 
-      <div className="btn-row" style={{ marginTop: 8 }}>
+      <div className="btn-row mt-3">
         <button
           className="btn sm ghost"
           title="Copy the whole message log to the clipboard"

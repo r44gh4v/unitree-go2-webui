@@ -243,7 +243,7 @@ export default function MediaPanel() {
         ))}
       </div>
 
-      <label className={`toggle${flash ? ' on' : ''}`} style={{ marginBottom: 10 }} title="Blink the colour instead of holding it steady - applies to the next colour you pick">
+      <label className={`toggle${flash ? ' on' : ''} mb-4`} title="Blink the colour instead of holding it steady - applies to the next colour you pick">
         <span className="toggle-label">
           <BoltIcon size={14} />
           Blink instead of steady
@@ -278,7 +278,7 @@ export default function MediaPanel() {
 
       <p className="note">{playing ? `Playing: ${playing}` : 'No playback reported yet.'}</p>
 
-      <div className="btn-row" style={{ marginBottom: 8 }}>
+      <div className="btn-row mb-3">
         <button className="btn sm" disabled={!connected || loadingTracks} title="Fetch the list of sounds stored on the robot again" onClick={() => void loadTracks()}>
           <RefreshIcon size={14} />
           {loadingTracks ? 'Loading…' : 'Reload'}
@@ -319,12 +319,12 @@ export default function MediaPanel() {
       </div>
 
       {hasTracks && (
-        <div style={{ maxHeight: 200, overflowY: 'auto', marginBottom: 8 }}>
+        <div className="mb-3" style={{ maxHeight: 200, overflowY: 'auto' }}>
           {tracks!.map((t) => (
             <button
               key={t.UNIQUE_ID}
-              className="btn sm block"
-              style={{ justifyContent: 'flex-start', marginBottom: 4 }}
+              className="btn sm block mb-1"
+              style={{ justifyContent: 'flex-start' }}
               disabled={!connected}
               title={`Play ${t.CUSTOM_NAME}`}
               onClick={() => audio(AUDIO_API.SELECT_START_PLAY, { unique_id: t.UNIQUE_ID }, 'Play')}
@@ -357,7 +357,7 @@ export default function MediaPanel() {
         Choose an audio file
       </button>
 
-      <div className="btn-row" style={{ marginTop: 6 }}>
+      <div className="btn-row mt-2">
         {!mic.recording ? (
           <button
             className="btn sm block"
@@ -376,7 +376,7 @@ export default function MediaPanel() {
         )}
       </div>
       {mic.clip && (
-        <div className="btn-row" style={{ marginTop: 6 }}>
+        <div className="btn-row mt-2">
           <button
             className="btn sm"
             disabled={!connected}

@@ -284,7 +284,7 @@ export default function LidarPanel() {
       <p className="eyebrow">Lidar map</p>
       <p className="note">Uses real bandwidth, so it stays off until asked</p>
 
-      <div className="btn-row" style={{ marginBottom: 10 }}>
+      <div className="btn-row mb-4">
         <button className="btn sm" title="Back to the starting angle" onClick={() => resetRef.current?.()}>
           Reset view
         </button>

@@ -223,7 +223,7 @@ export default function StatusPanel() {
                     ))}
                 </div>
                 {queryResult && (
-                    <pre className="log" style={{ marginTop: 8, maxHeight: 160 }}>
+                    <pre className="log mt-3" style={{ maxHeight: 160 }}>
                         {queryResult}
                     </pre>
                 )}

@@ -11,7 +11,7 @@ export default function DrivePanel() {
   const connected = connState === 'connected'
   // The lidar and the assist that reads it move together, and useSensing owns
   // that rule. This panel only draws two toggles.
-  const { lidarOn, avoidance, busy, setLidar, setAvoidance, recheckAvoidance } = sensing
+  const { lidarOn, settling, avoidance, busy, setLidar, setAvoidance, recheckAvoidance } = sensing
 
   /**
    * How far a full input pushes each stick. These scale what goes on the wire,
@@ -104,8 +104,7 @@ export default function DrivePanel() {
         </div>
 
         <label
-          className={`toggle${avoidance ? ' on' : ''}`}
-          style={{ marginTop: 8 }}
+          className={`toggle${avoidance ? ' on' : ''} mt-3`}
           title={
             (avoidance === null
               ? 'The robot has not reported this state yet. You can still set it'
@@ -149,17 +148,19 @@ export default function DrivePanel() {
             costs bandwidth and battery. It sits with obstacle avoidance because
             both are about what the robot can sense. */}
         <label
-          className={`toggle${lidarOn ? ' on' : ''}`}
-          style={{ marginTop: 8 }}
+          className={`toggle${lidarOn ? ' on' : ''} mt-3`}
           title={
             lidarOn
               ? 'Stop the lidar spinning. Obstacle avoidance needs it, so that goes off too'
-              : 'Start the lidar. It spins while on, and feeds the Lidar tab'
+              : settling
+                ? 'Switching off - re-sending OFF for a few seconds in case the avoidance service restarts it'
+                : 'Start the lidar. It spins while on, and feeds the Lidar tab'
           }
         >
           <span className="toggle-label">
             <ScanIcon size={15} />
             Lidar
+            {settling && <span className="chip">stopping…</span>}
           </span>
           <input
             type="checkbox"

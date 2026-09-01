@@ -353,8 +353,7 @@ export default function ConnectPanel() {
                   ))}
                 </select>
                 <button
-                  className="btn sm ghost"
-                  style={{ marginTop: 4 }}
+                  className="btn sm ghost mt-1"
                   disabled={locked}
                   title="Forget this sign-in on this browser"
                   onClick={() => { signOut(); setPickedSerial('') }}
@@ -364,7 +363,7 @@ export default function ConnectPanel() {
               </div>
             )}
 
-            <div className="btn-row" style={{ marginTop: 8 }}>
+            <div className="btn-row mt-3">
               {locked ? (
                 <button className="btn danger block" title="Close the link and free the robot for another client" onClick={disconnect}>
                   Disconnect
@@ -393,8 +392,8 @@ export default function ConnectPanel() {
             {found.map((r) => (
               <button
                 key={r.ip}
-                className="btn sm block"
-                style={{ justifyContent: 'space-between', marginTop: 4 }}
+                className="btn sm block mt-1"
+                style={{ justifyContent: 'space-between' }}
                 title="Use this address"
                 onClick={() => {
                   setMethod('ip')
@@ -406,12 +405,12 @@ export default function ConnectPanel() {
               </button>
             ))}
 
-            <button className="btn ghost sm block" style={{ marginTop: 6 }} title="Per-device AES key for firmware 1.1.15 and newer" onClick={() => setShowKey((v) => !v)}>
+            <button className="btn ghost sm block mt-2" title="Per-device AES key for firmware 1.1.15 and newer" onClick={() => setShowKey((v) => !v)}>
               {showKey ? 'Hide' : 'Device key'}
             </button>
 
             {showKey && (
-              <div className="field" style={{ marginTop: 6 }}>
+              <div className="field mt-2">
                 <input
                   className="input"
                   value={aesKey}
@@ -435,7 +434,7 @@ export default function ConnectPanel() {
           <p className="note">Reported once connected</p>
         ) : (
           <>
-            <div className="kv" style={{ marginBottom: 8 }}>
+            <div className="kv mb-3">
               <dt>Running</dt>
               <dd>{reportedMode ? SERVICE_LABEL[reportedMode] ?? reportedMode : 'asking…'}</dd>
             </div>
@@ -466,8 +465,7 @@ export default function ConnectPanel() {
             )}
 
             <button
-              className="btn sm ghost"
-              style={{ marginTop: 6 }}
+              className="btn sm ghost mt-2"
               title="Ask the robot again which motion service it is running"
               onClick={() => void refreshMotionMode().catch((e) => setNote(`Could not read the motion service: ${(e as Error).message}`))}
             >

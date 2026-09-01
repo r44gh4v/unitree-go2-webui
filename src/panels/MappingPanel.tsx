@@ -229,7 +229,7 @@ export default function MappingPanel() {
         points you choose. It needs the lidar running and only exists on firmware that ships the mapping service.
       </p>
 
-      <label className={`toggle${enabled ? ' on' : ''}`} style={{ marginBottom: 10 }} title="Subscribe to the SLAM module's log so you can see command replies">
+      <label className={`toggle${enabled ? ' on' : ''} mb-4`} title="Subscribe to the SLAM module's log so you can see command replies">
         <span className="toggle-label">
           <EyeIcon size={15} />
           Watch the mapping log
@@ -245,7 +245,7 @@ export default function MappingPanel() {
 
       {!enabled && <p className="note warn">Turn the log on before sending commands, or you will not see the replies.</p>}
 
-      <div style={{ marginBottom: 14 }}>
+      <div className="mb-6">
         <p className="eyebrow">Save the map</p>
         <p className="note">
           Pulls the built map off the robot - the point cloud (map.pcd) plus the occupancy grid and metadata
@@ -266,8 +266,7 @@ export default function MappingPanel() {
           }}
         />
         <button
-          className="btn sm block"
-          style={{ marginTop: 4 }}
+          className="btn sm block mt-1"
           title="Send a downloaded map bundle back to the robot's single map slot"
           onClick={() => restoreRef.current?.click()}
           disabled={downloading}
@@ -278,12 +277,12 @@ export default function MappingPanel() {
       </div>
 
       {GROUPS.map((g) => (
-        <div key={g.label} style={{ marginBottom: 14 }}>
+        <div key={g.label} className="mb-6">
           <p className="eyebrow">{g.label}</p>
           {g.note && <p className="note">{g.note}</p>}
           {g.items.map((item) =>
             item.args ? (
-              <div key={item.cmd} style={{ marginBottom: 6 }}>
+              <div key={item.cmd} className="mb-2">
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   {item.args.map((a, i) => (
                     <input
@@ -311,8 +310,8 @@ export default function MappingPanel() {
             ) : (
               <button
                 key={item.cmd}
-                className="btn sm block"
-                style={{ justifyContent: 'space-between', marginBottom: 4 }}
+                className="btn sm block mb-1"
+                style={{ justifyContent: 'space-between' }}
                 title={item.note ?? item.cmd}
                 onClick={() => send(item.cmd)}
               >
@@ -334,7 +333,7 @@ export default function MappingPanel() {
           </div>
         ))}
       </div>
-      <div className="btn-row" style={{ marginTop: 8 }}>
+      <div className="btn-row mt-3">
         <button className="btn sm ghost" title="Empty the mapping log" onClick={() => setServerLog([])} disabled={!serverLog.length}>
           Clear
         </button>

@@ -312,8 +312,7 @@ export default function SystemPanel() {
         return (
           <label
             key={s.key}
-            className={`toggle${state ? ' on' : ''}`}
-            style={{ marginTop: 6 }}
+            className={`toggle${state ? ' on' : ''} mt-2`}
             title={s.note}
           >
             <span className="toggle-label">
@@ -358,7 +357,7 @@ export default function SystemPanel() {
         <span style={{ fontSize: 10, color: 'var(--muted)' }}>{running === 'get_ip_address.sh' ? '…' : ''}</span>
       </button>
       {scriptOut['get_ip_address.sh'] && (
-        <pre className="log" style={{ maxHeight: 120, marginTop: 4 }}>
+        <pre className="log mt-1" style={{ maxHeight: 120 }}>
           {scriptOut['get_ip_address.sh']}
         </pre>
       )}
@@ -413,7 +412,7 @@ export default function SystemPanel() {
       </p>
 
       {visibleScripts.map((s) => (
-        <div key={s.script} style={{ marginBottom: 6 }}>
+        <div key={s.script} className="mb-2">
           <button
             className={`btn sm block${s.risky ? ' danger' : ''}`}
             style={{ justifyContent: 'space-between' }}
@@ -425,14 +424,14 @@ export default function SystemPanel() {
             <span style={{ fontSize: 10, color: 'var(--muted)' }}>{running === s.script ? '…' : s.script}</span>
           </button>
           {scriptOut[s.script] && (
-            <pre className="log" style={{ maxHeight: 140, marginTop: 4 }}>
+            <pre className="log mt-1" style={{ maxHeight: 140 }}>
               {scriptOut[s.script]}
             </pre>
           )}
         </div>
       ))}
 
-      <label className={`toggle${showRisky ? ' on' : ''}`} style={{ marginTop: 8 }} title="Reveal scripts that change robot state, not just read it">
+      <label className={`toggle${showRisky ? ' on' : ''} mt-3`} title="Reveal scripts that change robot state, not just read it">
         <span className="toggle-label">
           <TerminalIcon size={15} />
           Show scripts that change robot state

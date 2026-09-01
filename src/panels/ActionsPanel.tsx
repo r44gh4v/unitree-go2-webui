@@ -156,7 +156,7 @@ export default function ActionsPanel() {
         const items = ACTIONS.filter((a) => a.group === group.key)
         if (!items.length) return null
         return (
-          <div key={group.key} style={{ marginBottom: 20 }}>
+          <div key={group.key} className="mb-7">
             <p className="eyebrow">{group.label}</p>
             <p className="note">{group.note}</p>
             <div className="btn-grid">
@@ -208,7 +208,7 @@ export default function ActionsPanel() {
         )
       })}
 
-      <p className="note" style={{ marginTop: 10 }}>
+      <p className="note mt-4">
         <span className="badge">!</span> needs clear, soft floor. Dashed means the {motionMode} service does not list it -
         it is still worth a try, and the robot will say if it cannot.
       </p>

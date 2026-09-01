@@ -69,3 +69,33 @@ body {
 ::selection { background: var(--salmon); color: var(--crimson-deep); }
 
 button { font: inherit; color: inherit; }
+
+/* Vertical rhythm. Every panel was re-typing the same handful of pixel values
+   as an inline style, which is how `.toggle + .slider-row` ended up declared
+   twice with two different margins - nothing forced them to agree. This names
+   the values already in use rather than moving any of them, so it is safe to
+   apply everywhere at once: the rendered result is unchanged, only where the
+   number lives is different. */
+:root {
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 10px;
+  --space-5: 12px;
+  --space-6: 14px;
+  --space-7: 20px;
+}
+.mt-1 { margin-top: var(--space-1); }
+.mt-2 { margin-top: var(--space-2); }
+.mt-3 { margin-top: var(--space-3); }
+.mt-4 { margin-top: var(--space-4); }
+.mt-5 { margin-top: var(--space-5); }
+.mt-6 { margin-top: var(--space-6); }
+.mt-7 { margin-top: var(--space-7); }
+.mb-1 { margin-bottom: var(--space-1); }
+.mb-2 { margin-bottom: var(--space-2); }
+.mb-3 { margin-bottom: var(--space-3); }
+.mb-4 { margin-bottom: var(--space-4); }
+.mb-5 { margin-bottom: var(--space-5); }
+.mb-6 { margin-bottom: var(--space-6); }
+.mb-7 { margin-bottom: var(--space-7); }

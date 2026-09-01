@@ -16,7 +16,7 @@ function CameraStatus({ connected, starting }: { connected: boolean; starting: b
         <div className="spinner" />
         <b>{connState === 'validating' ? 'Authenticating' : 'Connecting'}</b>
         {connState === 'validating' ? 'Exchanging keys with the robot.' : `Reaching ${ip || 'the robot'}…`}
-        <button className="btn sm ghost" style={{ marginTop: 12 }} onClick={link.disconnect}>
+        <button className="btn sm ghost mt-5" onClick={link.disconnect}>
           Cancel
         </button>
       </div>
@@ -29,7 +29,7 @@ function CameraStatus({ connected, starting }: { connected: boolean; starting: b
         <b>Connection failed</b>
         <span className="reason">{connError ?? 'Unknown error'}</span>
         {link.retry && (
-          <button className="btn sm" style={{ marginTop: 12 }} onClick={link.retry}>
+          <button className="btn sm mt-5" onClick={link.retry}>
             Try again
           </button>
         )}

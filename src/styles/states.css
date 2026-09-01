@@ -63,8 +63,10 @@
 .btn.unavailable .action-icon { color: var(--icon-dim); }
 
 /* Hover is a hint that a press will do something, so a control that cannot act
-   must not offer it. */
-.btn.unavailable:hover, .btn.failed:hover:not(:disabled) { background-color: var(--surface); }
+   must not offer it. A refused tile is not that control - retrying is exactly
+   what it is for - so it keeps the ordinary wash instead of being flattened
+   alongside .unavailable. */
+.btn.unavailable:hover { background-color: var(--surface); }
 
 @media (prefers-reduced-motion: reduce) {
   .btn.action.running { animation: none; border-color: var(--text-strong); }
@@ -95,7 +97,7 @@
 @media (prefers-reduced-motion: reduce) {
   .swatch:hover:not(:disabled) { transform: none; }
   .btn:active:not(:disabled) { transform: none; }
-  .toggle .track, .toggle .track::after, .seg-btn, .btn { transition: none; }
+  .toggle .track, .toggle .track::after, .seg-btn, .btn, .tab { transition: none; }
 }
 
 /* Key caps on the drive dials. They sit inside the SVG so they scale with the
@@ -113,10 +115,6 @@
 @media (prefers-reduced-motion: reduce) {
   .joy-key { transition: none; }
 }
-
-/* A description that immediately follows its section label belongs to it, so it
-   sits tight under the label instead of floating midway to the content. */
-.toggle + .slider-row { margin-top: 9px; }
 
 /* A switch sitting directly above a slider row needs air between them, or the
    track and the slider read as one crowded control. */
@@ -147,31 +145,64 @@
 
 /* ---------- rail ---------- */
 
-/* Connection on the left, the stop dead centre where a hand goes for it
-   without aiming, readings on the right. Three tracks rather than a flex row,
-   so the stop stays centred on the window no matter how wide the readings get. */
+/* Chrome, not content, so it sits on the sunken tone rather than the panel
+   surface - that is what stops it reading as a stray panel with things
+   floating in it. Connection on the left, the stop dead centre where a hand
+   goes for it without aiming, readings on the right. Three grid tracks rather
+   than a flex row, so the stop stays centred on the window no matter how wide
+   the readings get. */
 .rail {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 10px;
-  padding: 3px 9px;
-  background: var(--surface);
+  gap: 14px;
+  padding: 4px 10px;
+  background: var(--sunken);
   border-bottom: 1px solid var(--line-strong);
 }
 .rail-side { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .rail-end { justify-content: flex-end; }
 .rail .pill, .rail .chip { flex: none; }
+/* Left and right get the same treatment so the bar balances: a grouped run of
+   items on the panel surface, with the stop between them. */
+.rail-side > .pill { background: var(--surface); }
+.rail-where {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface);
+  border-radius: var(--pill);
+  padding: 4px 11px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* Wide rather than tall: the stop reads as the biggest target on the surface
-   without costing the rail any height. */
+   without costing the rail any height. The word carries the button on its
+   own - an icon beside it was saying the same thing twice - so it is
+   centred on the whole control rather than on the space the key cap leaves
+   behind, and the key cap sits hard against the right end, taking the pill's
+   own radius so it reads as part of the shape rather than a label dropped on
+   top of it. */
 .rail .estop {
-  width: 210px;
-  padding: 6px 14px;
-  border-radius: 5px;
+  position: relative;
+  justify-content: flex-end;
+  width: 200px;
+  padding: 3px;
+  border-radius: var(--pill);
   gap: 9px;
 }
+.rail .estop-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  pointer-events: none;
+}
 .rail .estop kbd {
+  flex: none;
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 500;
@@ -179,34 +210,31 @@
   color: var(--cream);
   background: rgba(252, 236, 223, 0.16);
   border: 1px solid rgba(252, 236, 223, 0.32);
-  border-radius: 3px;
-  padding: 0 5px;
+  border-radius: var(--pill);
+  padding: 3px 11px;
   line-height: 1.6;
 }
 .rail .estop:disabled kbd { background: rgba(252, 236, 223, 0.12); border-color: rgba(252, 236, 223, 0.22); }
+/* Disabled, it is still plainly the stop: same shape, same weight, drained of
+   urgency rather than turned into a ghost. */
+.rail .estop:disabled { background: var(--estop-off); color: var(--cream); opacity: 1; }
 
-.rail-where {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 170px;
-}
-
-/* A row of small gauges: quiet label above, the measurement below it. Hairline
-   separated so they read as one instrument rather than seven chips. */
+/* The readings sit straight on the rail, one instrument rather than seven
+   loose chips: quiet label above, the measurement below it, hairline
+   separated. A surface capsule around the whole group was tried and dropped -
+   it read as a second container inside a bar that is already one. */
 .rail-readings { display: flex; align-items: stretch; min-width: 0; }
 .reading {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 0 10px;
+  padding: 0 12px;
   border-left: 1px solid var(--line);
   min-width: 0;
+  gap: 0;
 }
-.reading:last-child { padding-right: 2px; }
+.reading:first-child { border-left: none; padding-left: 0; }
+.reading:last-child { padding-right: 0; border-right: none; }
 .reading-label {
   font-size: 9px;
   font-weight: 600;
@@ -214,7 +242,7 @@
   text-transform: uppercase;
   color: var(--faint);
   white-space: nowrap;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 .reading-value {
   font-family: var(--mono);
@@ -222,7 +250,7 @@
   font-size: 12px;
   font-weight: 500;
   color: var(--text-strong);
-  line-height: 1.35;
+  line-height: 1.3;
   white-space: nowrap;
 }
 .reading-value small { font-family: var(--sans); font-size: 9px; font-weight: 500; color: var(--muted); }
@@ -285,6 +313,10 @@
 .btn.action { background: var(--sunken); }
 .btn.action:hover:not(:disabled) { background: var(--wash); }
 .btn.action.on { background: var(--crimson); }
+/* .btn.action.on and .btn:active are both three classes deep, so whichever is
+   declared later in the file wins the tie - which used to be .on, leaving a
+   lit tile with no press feedback at all. Four classes deep beats both. */
+.btn.action.on:active:not(:disabled) { background: var(--crimson-deep); }
 
 /* ---------- segmented control ---------- */
 
@@ -303,6 +335,7 @@
   box-shadow: none;
 }
 .seg-btn:hover:not(:disabled):not(.active) { background: var(--wash); color: var(--text-strong); }
+.seg-btn:active:not(:disabled):not(.active) { background: var(--wash-strong); }
 .seg-btn.active { background: var(--crimson); color: var(--cream); font-weight: 600; box-shadow: none; }
 
 /* ---------- pills and chips ---------- */
@@ -342,7 +375,9 @@
 .toggle .track::after { width: 16px; height: 16px; top: 3px; left: 3px; box-shadow: none; background: var(--surface); }
 .toggle.on .track::after { transform: translateX(18px); background: var(--cream); }
 .toggle:hover .track { border-color: transparent; background: var(--wash); }
+.toggle:active:has(input:not(:disabled)) .track { background: var(--wash-strong); }
 .toggle.on:hover .track { background: var(--crimson-deep); }
+.toggle.on:active:has(input:not(:disabled)) .track { background: var(--crimson-deep); }
 
 .swatch { border-radius: 50%; }
 
@@ -355,114 +390,20 @@
    for six labels - so only the indicator changes. */
 .tab { border-bottom: none; border-radius: 0; }
 .tab:hover:not(.active) { color: var(--text-strong); background: var(--wash); }
+.tab:active:not(.active) { background: var(--wash-strong); }
 .tab.active { color: var(--cream); background: var(--crimson); }
 .tab:focus-visible { outline: 2px solid var(--text-strong); outline-offset: -2px; }
-
-/* ---------- rail, properly ---------- */
-
-/* The rail is chrome, not content, so it sits on the sunken tone rather than
-   the panel surface - that is what stops it reading as a stray panel with
-   things floating in it. Everything inside is built from the vocabulary the
-   panels already use: a pill for state, mono for measurements, the eyebrow
-   treatment for labels. */
-.rail {
-  background: var(--sunken);
-  border-bottom: 1px solid var(--line-strong);
-  padding: 5px 10px;
-  gap: 14px;
-}
-
-/* Left and right are given the same treatment so the bar balances: a grouped
-   run of items on the panel surface, with the stop between them. */
-.rail-side > .pill { background: var(--surface); }
-.rail-where {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--muted);
-  background: var(--surface);
-  border-radius: var(--pill);
-  padding: 4px 11px;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.rail .estop {
-  width: 200px;
-  padding: 7px 16px;
-  border-radius: var(--pill);
-}
-/* Disabled, it is still plainly the stop: same shape, same weight, drained of
-   urgency rather than turned into a ghost. */
-.rail .estop:disabled { background: var(--estop-off); color: var(--cream); opacity: 1; }
-
-/* One grouped readout rather than seven loose numbers. */
-.rail-readings {
-  background: var(--surface);
-  border-radius: var(--pill);
-  padding: 3px 6px;
-}
-.reading { padding: 0 11px; border-left: 1px solid var(--line); }
-.reading:first-child { border-left: none; }
-.reading:last-child { padding-right: 8px; }
-.reading:first-child { padding-left: 8px; }
-.reading-label {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: var(--track);
-  text-transform: uppercase;
-  color: var(--faint);
-}
-.reading-value { font-size: 12px; color: var(--text-strong); }
-
-/* The word carries the button on its own; an icon beside it was saying the
-   same thing twice. The key cap sits hard against the right end and takes the
-   pill's own radius, so it reads as part of the shape rather than a label
-   dropped on top of it. */
-.rail .estop {
-  position: relative;
-  justify-content: flex-end;
-  padding: 4px;
-}
-/* Centred on the whole button, not on the space the key cap leaves behind -
-   the word is the control, so it sits on the control's own axis. */
-.rail .estop-label {
-  position: absolute;
-  left: 0;
-  right: 0;
-  text-align: center;
-  pointer-events: none;
-}
-.rail .estop kbd {
-  flex: none;
-  border-radius: var(--pill);
-  padding: 4px 12px;
-}
-
-/* ---------- rail telemetry ---------- */
-
-/* The readings sit straight on the rail. Wrapping them in their own surface
-   capsule made a second container inside a bar that is already a container,
-   and it read as a widget stuck on rather than part of the strip. */
-.rail-readings { background: none; border-radius: 0; padding: 0; }
-.reading { padding: 0 12px; min-width: 0; gap: 0; }
-.reading:first-child { padding-left: 0; }
-.reading:last-child { padding-right: 0; border-right: none; }
-.reading-label { font-size: 9px; color: var(--faint); line-height: 1.35; }
-.reading-value { font-size: 12px; line-height: 1.3; }
-.reading-value small { font-size: 9px; }
-
-/* Back to a compact bar now the gauges are gone from it. */
-.rail { padding: 4px 10px; }
-.rail .estop { padding: 3px; }
-.rail .estop kbd { padding: 3px 11px; }
 
 /* An action the running service does not list. Still pressable - our id tables
    are transcriptions, not the robot's manifest - but marked so a refusal is
    expected rather than surprising. */
 .btn.untested { border: 1px dashed var(--line-strong); }
 .btn.untested:hover:not(:disabled) { border-style: dashed; border-color: var(--text-strong); }
+/* --line-strong reads as a hairline flaw over the solid crimson fill of a lit
+   tile, not as the same "untested" marker it is everywhere else. Cream keeps
+   it legible as the same dashed border, just on a dark ground. */
+.btn.action.on.untested { border-color: rgba(252, 236, 223, 0.55); }
+.btn.action.on.untested:hover:not(:disabled) { border-color: var(--cream); }
 
 /* ---------- corrections ---------- */
 
