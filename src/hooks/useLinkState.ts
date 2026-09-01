@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { parseFaultFrame, FAULT_LIMIT, type RobotFault } from '../lib/robotFaults'
 import type { ConnState, Go2Connection } from '../lib/go2'
 
@@ -82,17 +82,11 @@ export function useLinkState(conn: Go2Connection): LinkState {
     }
   }, [conn])
 
-  return {
-    connState,
-    connError,
-    ip,
-    stream,
-    videoOn,
-    audioOn,
-    faults,
-    setVideoOn,
-    setAudioOn,
-    clearFaults: () => setFaults([]),
-    connected: connState === 'connected',
-  }
+  const clearFaults = useCallback(() => setFaults([]), [])
+  const connected = connState === 'connected'
+
+  return useMemo(
+    () => ({ connState, connError, ip, stream, videoOn, audioOn, faults, setVideoOn, setAudioOn, clearFaults, connected }),
+    [connState, connError, ip, stream, videoOn, audioOn, faults, clearFaults, connected],
+  )
 }

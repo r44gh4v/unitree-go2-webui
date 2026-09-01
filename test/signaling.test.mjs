@@ -1,6 +1,6 @@
 // Drive the real signaling code against the mock robot, one flow at a time.
 import crypto from 'node:crypto'
-import { startMockRobot } from './mockrobot.mjs'
+import { startMockRobot, closeServer } from './mockrobot.mjs'
 import { signalRobot } from '../server/signaling.mjs'
 
 import { makeChecker } from './harness.mjs'
@@ -18,7 +18,7 @@ async function run() {
     check('v1 robot received our offer', seen.offer, OFFER.sdp)
     check('v1 station-mode id', seen.id, 'STA_localNetwork')
     check('v1 path ending derived', seen.path, expectedPath)
-    server.close()
+    await closeServer(server)
   }
 
   // --- access-point variant sends an empty id ---
@@ -26,7 +26,7 @@ async function run() {
     const { server, seen } = await startMockRobot({ port: 9991, data2: 1 })
     await signalRobot('127.0.0.1', OFFER, '', '', true)
     check('ap mode uses empty id', seen.id, '')
-    server.close()
+    await closeServer(server)
   }
 
   // --- data2 = 2: data1 wrapped with the static legacy GCM key ---
@@ -35,7 +35,7 @@ async function run() {
     const answer = await signalRobot('127.0.0.1', OFFER, '')
     check('v2 answer decrypted', answer.sdp, 'v=0\r\nMOCK-ANSWER-ENCRYPTED\r\n')
     check('v2 path ending', seen.path, expectedPath)
-    server.close()
+    await closeServer(server)
   }
 
   // --- data2 = 3: per-device key required ---
@@ -54,7 +54,7 @@ async function run() {
     const answer = await signalRobot('127.0.0.1', OFFER, '', devKey)
     check('v3 with the right key succeeds', answer.sdp, 'v=0\r\nMOCK-ANSWER-ENCRYPTED\r\n')
     check('v3 offer arrived intact', seen.offer, OFFER.sdp)
-    server.close()
+    await closeServer(server)
   }
 
   // --- legacy plaintext flow on 8081 (9991 closed) ---
@@ -64,7 +64,7 @@ async function run() {
     check('legacy answer', answer.sdp, 'v=0\r\nMOCK-ANSWER-PLAIN\r\n')
     check('legacy offer intact', seen.offer, OFFER.sdp)
     check('legacy token forwarded', seen.token, 'tok123')
-    server.close()
+    await closeServer(server)
   }
 
   // --- robot busy ---
@@ -82,7 +82,7 @@ async function run() {
     let threw = ''
     try { await signalRobot('127.0.0.1', OFFER, '') } catch (e) { threw = e.message }
     check('busy robot reported clearly', threw.includes('another client'), true)
-    busy.close()
+    await closeServer(busy)
   }
 
   // --- nothing listening ---

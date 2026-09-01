@@ -87,3 +87,19 @@ export function startMockRobot({ port, flow = 'new', data2 = 1, aes128Key = null
     server.listen(port, '127.0.0.1', () => resolve({ server, seen, expectedPath }))
   })
 }
+
+/**
+ * server.close() alone does not wait for the port to be released - it stops
+ * accepting new connections but returns before the listener is actually torn
+ * down, and any keep-alive socket fetch() left open holds it a little longer
+ * still. The next block in this file binds the same port immediately, so the
+ * test suite intermittently failed with EADDRINUSE depending on how busy the
+ * machine was. closeAllConnections (Node 18.2+) drops those keep-alive
+ * sockets; awaiting the close callback is what actually waits for the port.
+ */
+export function closeServer(server) {
+  return new Promise((resolve) => {
+    server.closeAllConnections()
+    server.close(() => resolve())
+  })
+}

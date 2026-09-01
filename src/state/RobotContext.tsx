@@ -137,11 +137,11 @@ export function RobotProvider({ children }: { children: ReactNode }) {
 
   // What the link is doing, and what the robot is complaining about.
   const linkState = useLinkState(conn)
-  const { connState, connError, ip, stream, videoOn, audioOn } = linkState
+  const { connState, connError, ip, stream, videoOn, audioOn, faults, setVideoOn, setAudioOn, clearFaults } = linkState
 
   // High-rate readings and the traffic log, flushed at a rate React survives.
   const feed = useTelemetryFeed(conn)
-  const { lowState, sportState, traffic, log } = feed
+  const { lowState, sportState, traffic, log, stats, clearTraffic, resetRate, clearReadings } = feed
 
   const [posing, setPosing] = useState(false)
   /**
@@ -159,7 +159,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   const [motionMode, setMotionMode] = useState<MotionMode>('normal')
   const [reportedMode, setReportedMode] = useState<string | null>(null)
 
-  const sensing = useSensing(conn, connState, log)
+  const sensing = useSensing(conn, connState, motionMode, log)
 
   /**
    * Follow the robot into and out of pose mode.
@@ -187,18 +187,25 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   const recovery = useOnce(() => new ReconnectPolicy<ConnectOptions>())
   const [canRetry, setCanRetry] = useState(false)
 
-  /** The parts of opening a link that are the same however it was asked for. */
+  /**
+   * The parts of opening a link that are the same however it was asked for.
+   *
+   * Deps are the two functions actually called, not `linkState` and `feed`
+   * themselves - those hook results used to be rebuilt every render, so this
+   * callback's identity churned with them, and the reconnect effect below
+   * (which depends on it) tore down and re-ran on every telemetry flush.
+   */
   const beginConnect = useCallback(
     async (opts: ConnectOptions) => {
       lastConnect.current = opts
       setCanRetry(true)
       // connState arrives as 'connecting' immediately, which clears connError
       // on its own - the reset that used to sit here was doing it twice.
-      linkState.clearFaults()
-      feed.resetRate()
+      clearFaults()
+      resetRate()
       await conn.connect(opts)
     },
-    [conn, linkState, feed],
+    [conn, clearFaults, resetRate],
   )
 
   const connect = useCallback(
@@ -217,9 +224,9 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   const disconnect = useCallback(() => {
     recovery.abandoned()
     conn.disconnect()
-    feed.clearReadings()
+    clearReadings()
     setReportedMode(null)
-  }, [conn, recovery, feed])
+  }, [conn, recovery, clearReadings])
 
   /**
    * Closing the tab, navigating away, or shutting the lid is a disconnect the
@@ -248,12 +255,24 @@ export function RobotProvider({ children }: { children: ReactNode }) {
    * connection with. conn.connect() tears the old one down first, so this
    * cannot leave the robot holding a session with no client on the other end.
    */
+  /**
+   * Which drop this effect has already asked ReconnectPolicy about. Guards
+   * against a stray re-render landing on the same loss and asking again -
+   * afterLoss() itself says that is a caller bug, and asking twice for one
+   * loss used to burn the whole five-step schedule inside a second. Reset
+   * whenever the link leaves error/closed, so the *next* loss is still acted
+   * on the moment it happens.
+   */
+  const actedOnLoss = useRef(false)
+
   useEffect(() => {
-    if (connState === 'connected') {
-      recovery.established()
+    if (connState !== 'error' && connState !== 'closed') {
+      actedOnLoss.current = false
+      if (connState === 'connected') recovery.established()
       return
     }
-    if (connState !== 'error' && connState !== 'closed') return
+    if (actedOnLoss.current) return
+    actedOnLoss.current = true
 
     const step = recovery.afterLoss()
     if (step.act === 'stand-down') return
@@ -273,17 +292,17 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   const setVideo = useCallback(
     (on: boolean) => {
       conn.setVideo(on)
-      linkState.setVideoOn(on)
+      setVideoOn(on)
     },
-    [conn, linkState],
+    [conn, setVideoOn],
   )
 
   const setAudio = useCallback(
     (on: boolean) => {
       conn.setAudio(on)
-      linkState.setAudioOn(on)
+      setAudioOn(on)
     },
-    [conn, linkState],
+    [conn, setAudioOn],
   )
 
   const sport = useCallback(
@@ -377,8 +396,8 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   // does, which is what keeps a panel that reads `link` still while `motion`
   // is busy.
   const link = useMemo<LinkApi>(
-    () => ({ stats: feed.stats, connect, retry: canRetry ? retry : null, disconnect }),
-    [feed.stats, connect, canRetry, retry, disconnect],
+    () => ({ stats, connect, retry: canRetry ? retry : null, disconnect }),
+    [stats, connect, canRetry, retry, disconnect],
   )
 
   const motion = useMemo<MotionApi>(
@@ -408,8 +427,8 @@ export function RobotProvider({ children }: { children: ReactNode }) {
   )
 
   const diagnostics = useMemo<DiagnosticsApi>(
-    () => ({ traffic, errors: linkState.faults, clearTraffic: feed.clearTraffic, clearErrors: linkState.clearFaults }),
-    [traffic, linkState, feed],
+    () => ({ traffic, errors: faults, clearTraffic, clearErrors: clearFaults }),
+    [traffic, faults, clearTraffic, clearFaults],
   )
 
   const api = useMemo<RobotApi>(

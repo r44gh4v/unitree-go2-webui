@@ -24,8 +24,12 @@ const START_VIEW = { radius: 6, theta: Math.PI / 4, phi: Math.PI / 3 }
  */
 export default function LidarPanel() {
   const { conn, connState, sensing, log } = useRobot()
-  const { lidarOn } = sensing
+  const { lidarOn, lidarState } = sensing
   const connected = connState === 'connected'
+  // Read inside the deadline timeout below, which is set up once per lidar-on
+  // period and must not restart every time a lidar_state frame arrives.
+  const lidarStateRef = useRef(lidarState)
+  lidarStateRef.current = lidarState
   const mountRef = useRef<HTMLDivElement>(null)
   const meshRef = useRef<THREE.Mesh | null>(null)
   const robotRef = useRef<THREE.Mesh | null>(null)
@@ -222,16 +226,6 @@ export default function LidarPanel() {
     })
   }, [connected, lidarOn, conn])
 
-  // Lidar health, so a stream that never starts can say why. Gated on the
-  // switch as well as the link: subscribing to a utlidar topic is a request
-  // for the sensor, and the console must not be asking for lidar data at the
-  // same moment it is asking the lidar to stop.
-  const lidarState = useRef<unknown>(null)
-  useEffect(() => {
-    if (!connected || !lidarOn) return
-    return conn.subscribe(TOPICS.ULIDAR_STATE, (d) => (lidarState.current = d))
-  }, [connected, lidarOn, conn])
-
   // subscription lifecycle
   useEffect(() => {
     if (!lidarOn || !connected) return
@@ -243,7 +237,7 @@ export default function LidarPanel() {
     const deadline = setTimeout(() => {
       if (cancelled || gotFrame) return
       setStatus(
-        lidarState.current
+        lidarStateRef.current
           ? 'No frames yet, though the lidar is reporting. Try full bandwidth in the System tab.'
           : 'No frames and no lidar report. The lidar service may be stopped - check Services in the System tab.',
       )

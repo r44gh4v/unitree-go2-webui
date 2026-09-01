@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TOPICS } from '../lib/constants'
 import { MessageRate } from '../lib/messageRate'
 import { useOnce } from './useOnce'
@@ -91,7 +91,17 @@ export function useTelemetryFeed(conn: Go2Connection): TelemetryFeed {
         setTraffic((prev) => [...prev, ...chunk].slice(-TRAFFIC_LIMIT))
       }
       const s = conn.stats
-      setStats({ ...s, rate: Math.round(rate.sample(s.messages, performance.now())) })
+      const nextRate = Math.round(rate.sample(s.messages, performance.now()))
+      // A stats object rebuilt every flush - whether or not any field actually
+      // moved - was the single biggest source of churn in the app: every
+      // consumer of RobotApi re-rendered 150ms, forever, because `link.stats`
+      // never once compared equal. Bailing out here is what makes React's own
+      // bail-out (returning the previous state from an updater) do its job.
+      setStats((prev) =>
+        prev.messages === s.messages && prev.bytes === s.bytes && prev.topics === s.topics && prev.rate === nextRate
+          ? prev
+          : { ...s, rate: nextRate },
+      )
     }, FLUSH_MS)
     return () => clearInterval(timer)
   }, [conn, rate])
@@ -106,5 +116,8 @@ export function useTelemetryFeed(conn: Go2Connection): TelemetryFeed {
     setSportState(null)
   }, [])
 
-  return { lowState, sportState, traffic, stats, clearTraffic, log, resetRate, clearReadings }
+  return useMemo(
+    () => ({ lowState, sportState, traffic, stats, clearTraffic, log, resetRate, clearReadings }),
+    [lowState, sportState, traffic, stats, clearTraffic, log, resetRate, clearReadings],
+  )
 }

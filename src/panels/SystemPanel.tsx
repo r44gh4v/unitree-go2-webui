@@ -120,7 +120,7 @@ const SETTINGS: SettingSpec[] = [
 
 /** Services, firmware details, and the on-board script runner. */
 export default function SystemPanel() {
-  const { conn, connState, ip, motion, log } = useRobot()
+  const { conn, connState, ip, motion, sensing, log } = useRobot()
   const motionMode = motion.mode
   const connected = connState === 'connected'
 
@@ -134,7 +134,6 @@ export default function SystemPanel() {
   const [selfTest, setSelfTest] = useState<unknown[]>([])
   /** What has already been reported, so a repeat is not listed twice. */
   const seenSelfTest = useRef(new Set<string>())
-  const [lidarState, setLidarState] = useState<unknown>(null)
 
   const [settings, setSettings] = useState<Record<string, boolean | undefined>>({})
   const [settingsError, setSettingsError] = useState<string | null>(null)
@@ -149,7 +148,6 @@ export default function SystemPanel() {
       setMultiple(null)
       setSelfTest([])
       seenSelfTest.current.clear()
-      setLidarState(null)
       return
     }
 
@@ -171,7 +169,6 @@ export default function SystemPanel() {
         seenSelfTest.current.add(text)
         setSelfTest((prev) => [...prev, d].slice(-SELF_TEST_LIMIT))
       }),
-      conn.subscribe(TOPICS.ULIDAR_STATE, setLidarState),
     ]
 
     // The robot only publishes the service list when asked, and the request
@@ -459,12 +456,15 @@ export default function SystemPanel() {
         </>
       )}
 
-      {lidarState != null && (
+      {sensing.lidarState != null && (
         <>
           <div className="divider" />
           <p className="eyebrow">Lidar</p>
+          <p className="note">
+            {sensing.settling ? 'Switching off - still within the reassert window.' : sensing.lidarOn ? 'Switch is on.' : 'Switch is off.'}
+          </p>
           <pre className="log" style={{ maxHeight: 160 }}>
-            {JSON.stringify(lidarState, null, 1).slice(0, 3000)}
+            {JSON.stringify(sensing.lidarState, null, 1).slice(0, 3000)}
           </pre>
         </>
       )}
