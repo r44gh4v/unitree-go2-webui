@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": ["dist/**", "node_modules/**", "unitree_ui/**", ".playwright-mcp/**"],
+  "categories": {
+    "correctness": "error"
+  },
+  "plugins": ["react", "typescript", "oxc"],
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2022": true
+  },
+  "rules": {
+    "react-hooks/exhaustive-deps": "error",
+    "react-hooks/rules-of-hooks": "error",
+
+    "no-unused-vars": ["error", { "args": "none", "caughtErrors": "none", "varsIgnorePattern": "^_" }],
+    "typescript/no-unused-vars": ["error", { "args": "none", "caughtErrors": "none", "varsIgnorePattern": "^_" }],
+    "typescript/no-explicit-any": "warn",
+
+    "no-console": "off",
+    "eslint/no-empty": ["error", { "allowEmptyCatch": true }],
+
+    "react/set-state-in-effect": "off",
+    "react/refs": "off"
+  },
+  "overrides": [
+    {
+      "files": ["test/**/*.mjs", "server/**/*.mjs", "api/**/*.mjs"],
+      "rules": {
+        "react-hooks/exhaustive-deps": "off",
+        "react-hooks/rules-of-hooks": "off"
+      }
+    }
+  ]
+}

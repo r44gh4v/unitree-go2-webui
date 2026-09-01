@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { readSetting, writeSetting } from '../lib/storage'
 
 interface SplitProps {
   /** 'vertical' puts the gutter between side-by-side panes */
@@ -20,7 +21,7 @@ interface SplitProps {
 export default function Split({ direction = 'vertical', initial, min = 140, max = 900, storageKey, children }: SplitProps) {
   const [size, setSize] = useState(() => {
     if (!storageKey) return initial
-    const saved = Number(localStorage.getItem(storageKey))
+    const saved = Number(readSetting(storageKey))
     return Number.isFinite(saved) && saved >= min ? saved : initial
   })
   const [dragging, setDragging] = useState(false)
@@ -28,7 +29,7 @@ export default function Split({ direction = 'vertical', initial, min = 140, max 
   const vertical = direction === 'vertical'
 
   useEffect(() => {
-    if (storageKey) localStorage.setItem(storageKey, String(size))
+    if (storageKey) writeSetting(storageKey, String(size))
   }, [size, storageKey])
 
   // The drag path clamps against the container, but a saved size can exceed a

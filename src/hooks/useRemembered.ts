@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { readSetting, writeSetting } from '../lib/storage'
 
 /**
  * A field the console remembers between visits.
@@ -13,20 +14,10 @@ import { useEffect, useState } from 'react'
  * piece of state rather than taking the panel down with it.
  */
 export function useRemembered(key: string, fallback: string): [string, (v: string) => void] {
-  const [value, setValue] = useState(() => {
-    try {
-      return localStorage.getItem(key) ?? fallback
-    } catch {
-      return fallback
-    }
-  })
+  const [value, setValue] = useState(() => readSetting(key) ?? fallback)
 
   useEffect(() => {
-    try {
-      localStorage.setItem(key, value)
-    } catch {
-      /* nothing is remembered this session; the console still works */
-    }
+    writeSetting(key, value)
   }, [key, value])
 
   return [value, setValue]

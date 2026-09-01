@@ -3,7 +3,7 @@ import { useCloudSession } from '../hooks/useCloudSession'
 import { useRemembered } from '../hooks/useRemembered'
 import { useRobot } from '../state/RobotContext'
 import { SWITCHABLE_MODES } from '../lib/constants'
-import type { CloudRobot, ConnectMethod, DiscoveredRobot } from '../lib/types'
+import type { ConnectMethod, DiscoveredRobot } from '../lib/types'
 import { lastServerInfo, probeServer } from '../lib/serverInfo'
 import { ScanIcon } from '../components/Icons'
 

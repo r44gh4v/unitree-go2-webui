@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { TOPICS } from '../lib/constants'
 import { MessageRate } from '../lib/messageRate'
+import { useOnce } from './useOnce'
 import type { Go2Connection, TrafficEntry } from '../lib/go2'
 import type { LowState, SportModeState } from '../lib/types'
 
@@ -46,7 +47,7 @@ export function useTelemetryFeed(conn: Go2Connection): TelemetryFeed {
   const pendingLow = useRef<LowState | null>(null)
   const pendingSport = useRef<SportModeState | null>(null)
   const pendingTraffic = useRef<TrafficEntry[]>([])
-  const rate = useRef(new MessageRate()).current
+  const rate = useOnce(() => new MessageRate())
 
   /** Console-side lines share the robot's log, and its flush. */
   const log = useCallback((text: string) => {

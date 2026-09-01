@@ -9,7 +9,7 @@
 import { md5 } from 'js-md5'
 import { API_STATUS_CODES, DATA_CHANNEL_TYPE, SPORT_CMD, TOPICS } from './constants'
 import { lastServerInfo } from './serverInfo'
-import { decodeVoxelMesh, type VoxelMesh } from './voxel'
+import { decodeVoxelMesh } from './voxel'
 import { ChunkAssembler, readFrame, type ChunkInfo } from './frames'
 import { nextRequestId } from './correlation'
 import { parseMaybeJson } from './wireJson'
@@ -187,8 +187,6 @@ export class Go2Connection extends EventTarget {
     const gen = ++this.generation
     /** True once a later connect or a disconnect has superseded this attempt. */
     const stale = () => this.generation !== gen
-    let method = opts.method ?? 'ip'
-    let targetIp = opts.ip ?? ''
     this.msgCount = 0
     this.byteCount = 0
     this.setState('connecting')

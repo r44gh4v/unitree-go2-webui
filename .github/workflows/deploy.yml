@@ -22,8 +22,14 @@ jobs:
 
       # Checked here rather than left to the Vercel build, so a failure names
       # itself in the commit that caused it instead of surfacing as a deploy
-      # that quietly did not happen. npm run build is typecheck plus bundle.
+      # that quietly did not happen.
+      #
+      # Lint runs first because it is the fastest and catches the class of bug
+      # this codebase actually has - an effect reading a value it never
+      # declared, a subscription with no cleanup - which typecheck cannot see
+      # and a test only catches once someone has written it.
       - run: npm ci
+      - run: npm run lint
       - run: npm run build
       - run: npm test
 

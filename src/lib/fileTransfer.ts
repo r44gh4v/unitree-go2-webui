@@ -10,6 +10,10 @@
 // The channel it needs is narrow enough to state, so it takes one rather than
 // the whole connection. That is also what makes it testable without a robot.
 
+// Imported with its extension on purpose: this file is loaded straight from
+// source by the tests, and node's module resolver needs it. See test/run.mjs.
+import { sleep } from './sleep.ts'
+
 /** How much base64 text goes in one upload chunk. Matches the phone app. */
 const UPLOAD_CHUNK = 30 * 1024
 
@@ -81,8 +85,6 @@ interface Download {
   reject: (e: Error) => void
   timer: ReturnType<typeof setTimeout>
 }
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 export class FileTransfer {
   private downloads = new Map<string, Download>()

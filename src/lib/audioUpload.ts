@@ -5,6 +5,7 @@
 // Ported from legion1581/unitree_webrtc_connect webrtc_audiohub.py.
 
 import { md5 } from 'js-md5'
+import { sleep } from './sleep'
 import { AUDIO_API, TOPICS } from './constants'
 import type { Go2Connection } from './go2'
 
@@ -108,7 +109,7 @@ async function sendInChunks(
     await conn.request(TOPICS.AUDIO_HUB_REQ, apiId, JSON.stringify(parameter), 20000)
     onProgress?.({ sent: i + 1, total: chunks.length })
     // the robot needs a beat between chunks or it drops them
-    await new Promise((r) => setTimeout(r, 100))
+    await sleep(100)
   }
 }
 

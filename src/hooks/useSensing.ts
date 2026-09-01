@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { OBSTACLES_AVOID_API, TOPICS } from '../lib/constants'
 import { unwrapResponse } from '../lib/go2'
+import { sleep } from '../lib/sleep'
 import type { Go2Connection } from '../lib/go2'
 import type { ConnState } from '../lib/go2'
 
@@ -23,8 +24,6 @@ const AVOID_ACK_MS = 600
 
 /** The firmware drops one of these routinely, so the switch is repeated. */
 const SWITCH_REPEATS_MS = [0, 100, 200, 300, 400]
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 export interface Sensing {
   /** Whether the head lidar is turning. */

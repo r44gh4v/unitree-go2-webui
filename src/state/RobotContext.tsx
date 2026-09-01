@@ -6,7 +6,6 @@ import {
   SPORT_CMD,
   SPORT_CMD_MCF,
   TOPICS,
-  describeError,
   type ActionSpec,
   type MotionMode,
 } from '../lib/constants'
@@ -17,6 +16,7 @@ import { useLinkState } from '../hooks/useLinkState'
 import { sendsToggleData } from '../lib/actionKinds'
 import { resolveAction, type Availability } from '../lib/actionAvailability'
 import { useSensing, type Sensing } from '../hooks/useSensing'
+import { useOnce } from '../hooks/useOnce'
 
 /** sportmodestate.mode while the robot is holding a pose. */
 const MODE_POSE = 2
@@ -24,8 +24,6 @@ const MODE_POSE = 2
 /** How long a deliberate pose change is trusted before telemetry overrules it. */
 const POSE_SETTLE_MS = 1500
 
-const TRAFFIC_LIMIT = 500
-const UI_FLUSH_MS = 150
 
 
 /**
@@ -135,9 +133,7 @@ export function useTelemetry(): Telemetry {
 }
 
 export function RobotProvider({ children }: { children: ReactNode }) {
-  const connRef = useRef<Go2Connection | null>(null)
-  if (!connRef.current) connRef.current = new Go2Connection()
-  const conn = connRef.current
+  const conn = useOnce(() => new Go2Connection())
 
   // What the link is doing, and what the robot is complaining about.
   const linkState = useLinkState(conn)
@@ -188,7 +184,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
    * so the effect below reads as the one decision it makes rather than as four
    * flags being consulted in the right order.
    */
-  const recovery = useRef(new ReconnectPolicy<ConnectOptions>()).current
+  const recovery = useOnce(() => new ReconnectPolicy<ConnectOptions>())
   const [canRetry, setCanRetry] = useState(false)
 
   /** The parts of opening a link that are the same however it was asked for. */
@@ -287,7 +283,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       conn.setAudio(on)
       linkState.setAudioOn(on)
     },
-    [conn],
+    [conn, linkState],
   )
 
   const sport = useCallback(

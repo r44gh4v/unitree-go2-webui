@@ -181,6 +181,10 @@ export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
     }
 
     const id = setInterval(tick, SEND_MS)
+    // Captured here rather than read in the cleanup: by the time cleanup
+    // runs these refs may point at a later render's values, and the intent is
+    // to settle the loop this effect started.
+    const heldKeys = keys.current
     return () => {
       clearInterval(id)
       // Turning the loop off while the robot is walking must not leave a
@@ -190,7 +194,7 @@ export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
         else moveSticks(0, 0, 0, 0)
       }
       trailing.current = 0
-      keys.current.clear()
+      heldKeys.clear()
       stick.current = ZERO
       sent.current = ZERO
       setActive(ZERO)

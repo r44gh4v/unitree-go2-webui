@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { isTextEntry } from './lib/focus'
 import AuthGate from './components/AuthGate'
 import { RobotProvider, useRobot } from './state/RobotContext'

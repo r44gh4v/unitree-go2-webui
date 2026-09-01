@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { readStoredSession, storeSession, type CloudRobot, type CloudSession } from '../lib/cloudSession'
+import { forgetSetting, readSetting, writeSetting } from '../lib/storage'
 
 /**
  * Being signed in to a Unitree account.
@@ -33,21 +34,12 @@ export function useCloudSession(): CloudSessionApi {
   // A remembered session is restored once, and a save that cannot be trusted is
   // cleared rather than left to fail later at connect time.
   useEffect(() => {
-    let raw: string | null = null
-    try {
-      raw = localStorage.getItem(STORE_KEY)
-    } catch {
-      return
-    }
+    const raw = readSetting(STORE_KEY)
     const restored = readStoredSession(raw, Date.now())
     if (restored) setSession(restored)
-    else if (raw) {
-      try {
-        localStorage.removeItem(STORE_KEY)
-      } catch {
-        /* storage blocked; nothing to clear */
-      }
-    }
+    // A save that cannot be trusted is cleared rather than left to fail later
+    // at connect time, where the reason is far less obvious.
+    else if (raw) forgetSetting(STORE_KEY)
   }, [])
 
   const signIn = useCallback(async (email: string, password: string, region: string) => {
@@ -64,13 +56,7 @@ export function useCloudSession(): CloudSessionApi {
       const next: CloudSession = { token: body.token ?? '', robots: body.robots ?? [] }
       setSession(next)
       // An account with no robots is a real answer, not a session worth keeping.
-      if (next.robots.length) {
-        try {
-          localStorage.setItem(STORE_KEY, storeSession(next, Date.now()))
-        } catch {
-          /* storage full or blocked; the session just will not survive a reload */
-        }
-      }
+      if (next.robots.length) writeSetting(STORE_KEY, storeSession(next, Date.now()))
       return next.robots
     } finally {
       setSigningIn(false)
@@ -78,11 +64,7 @@ export function useCloudSession(): CloudSessionApi {
   }, [])
 
   const signOut = useCallback(() => {
-    try {
-      localStorage.removeItem(STORE_KEY)
-    } catch {
-      /* storage blocked; the in-memory session still goes */
-    }
+    forgetSetting(STORE_KEY)
     setSession(null)
   }, [])
 
