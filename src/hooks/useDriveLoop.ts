@@ -11,8 +11,6 @@ const TRAILING_ZEROS = 4
 /** Below this a command is treated as rest. */
 const EPSILON = 0.004
 
-export type { DriveVector } from '../lib/driveInput'
-
 export interface DriveLimits {
   /** how far a full input deflects the stick, 0..1 */
   linear: number

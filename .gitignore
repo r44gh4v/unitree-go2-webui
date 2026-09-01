@@ -6,6 +6,8 @@ dist/
 .vercel/
 .DS_Store
 Thumbs.db
+desktop.ini
 unitree_ui/
 .playwright-mcp/
 CONTEXT.md
+.claude/settings.local.json

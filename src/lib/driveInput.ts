@@ -37,8 +37,6 @@ export interface DriveInputs {
   pad: { axes: readonly number[] } | null
 }
 
-const ZERO: DriveVector = { x: 0, y: 0, z: 0 }
-
 /** Ignore the drift a resting stick always reports. */
 const past = (v: number) => (Math.abs(v) < DEADZONE ? 0 : v)
 
@@ -97,5 +95,3 @@ export function approach(current: number, target: number): number {
   if (Math.abs(delta) <= rate) return target
   return current + Math.sign(delta) * rate
 }
-
-export const REST = ZERO
