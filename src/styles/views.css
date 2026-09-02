@@ -112,7 +112,6 @@
   transition: border-color 0.15s;
 }
 .remote.active { border-color: var(--salmon); }
-.remote-stick { text-align: center; }
 
 .joystick { text-align: center; user-select: none; touch-action: none; }
 .joystick .pad {
@@ -255,7 +254,6 @@
 .pill-connecting, .pill-validating { background: rgba(249, 157, 144, 0.22); color: var(--text-strong); border-color: var(--salmon); }
 .pill-connected { background: rgba(47, 143, 91, 0.16); color: var(--ok); border-color: rgba(47, 143, 91, 0.4); }
 .pill-error { background: rgba(158, 18, 44, 0.12); color: var(--text-strong); border-color: rgba(158, 18, 44, 0.4); }
-.pill-warn { background: rgba(192, 116, 20, 0.15); color: var(--warn); border-color: rgba(192, 116, 20, 0.4); }
 /* fits the 26px footer strip */
 .footer .theme-toggle { padding: 1px 6px; }
 
@@ -331,57 +329,6 @@
 .swatch:hover:not(:disabled) { transform: scale(1.08); }
 .swatch.on { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text-strong); }
 .swatch:disabled { cursor: not-allowed; opacity: 0.55; }
-
-/* ---------- fault toasts ---------- */
-
-.toasts {
-  position: fixed;
-  /* Bottom-left: out of the way of the tab strip and the action grid, which
-     is what the top-right corner used to cover. */
-  bottom: 34px;
-  left: 14px;
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: min(360px, calc(100vw - 24px));
-  pointer-events: none;
-}
-.toast {
-  pointer-events: auto;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 9px 12px;
-  background: var(--surface);
-  border: 1.5px solid var(--text-strong);
-  border-radius: var(--radius);
-  box-shadow: 0 4px 14px rgba(120, 13, 32, 0.22);
-  animation: toast-in 0.18s ease-out;
-}
-@keyframes toast-in {
-  from { opacity: 0; transform: translateX(-12px); }
-}
-.toast-src {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: var(--track);
-  text-transform: uppercase;
-  color: var(--text-strong);
-  white-space: nowrap;
-  padding-top: 1px;
-}
-.toast-text { font-size: 12px; color: var(--text); flex: 1; line-height: 1.35; }
-.toast-x {
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 2px;
-}
-.toast-x:hover { color: var(--text-strong); }
 
 /* ---------- misc ---------- */
 

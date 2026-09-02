@@ -97,19 +97,6 @@
   left: 5px;
 }
 
-/* ---------- stop strip ---------- */
-
-/* Pinned above the drive controls: never scrolls, never covered. */
-.stopbar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--line-strong);
-}
-
 .chip {
   display: inline-flex;
   align-items: center;

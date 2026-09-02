@@ -9,7 +9,7 @@ export interface JoystickKeys {
 
 export interface JoystickProps {
   label: string
-  size?: number
+  size: number
   /** normalized vector, each axis in [-1, 1]; y is +up */
   onChange: (x: number, y: number) => void
   disabled?: boolean
@@ -26,7 +26,7 @@ export interface JoystickProps {
 /** A direction counts as pressed once it is a third of the way out. */
 const LIT = 0.33
 
-export default function Joystick({ label, size = 132, onChange, disabled, value, keys }: JoystickProps) {
+export default function Joystick({ label, size, onChange, disabled, value, keys }: JoystickProps) {
   const padRef = useRef<HTMLDivElement>(null)
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null)
   const pointerId = useRef<number | null>(null)

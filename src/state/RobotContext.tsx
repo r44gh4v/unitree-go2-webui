@@ -5,7 +5,6 @@ import {
   MOTION_SWITCHER_API,
   ROBOT_STATE_API,
   SPORT_CMD,
-  SPORT_CMD_MCF,
   TOPICS,
   type ActionSpec,
   type MotionMode,
@@ -17,7 +16,6 @@ import { useLinkState } from '../hooks/useLinkState'
 import { sendsToggleData } from '../lib/actionKinds'
 import { resolveAction, type Availability } from '../lib/actionAvailability'
 import { useSensing, type Sensing } from '../hooks/useSensing'
-import { useOnce } from '../hooks/useOnce'
 
 /** sportmodestate.mode while the robot is holding a pose. */
 const MODE_POSE = 2
@@ -70,12 +68,10 @@ export interface MotionApi {
   mode: MotionMode
   /** what the robot says it is running, which can differ from `mode` */
   reportedMode: string | null
-  setMode: (m: MotionMode) => void
   /** How an action stands against the running motion service. */
   availabilityOf: (a: ActionSpec) => Availability
   sport: (apiId: number, parameter?: unknown) => Promise<ApiResponse>
   runAction: (a: ActionSpec, toggleOn?: boolean) => Promise<ApiResponse>
-  move: (x: number, y: number, z: number) => void
   /**
    * Stick frame on the wireless-controller topic - the wire the handheld
    * remote itself uses, and the only one legion1581/unitree_ui drives with.
@@ -83,7 +79,6 @@ export interface MotionApi {
   moveSticks: (lx: number, ly: number, rx: number, ry: number) => void
   /** body attitude in radians; only obeyed while the robot is in pose mode */
   setEuler: (roll: number, pitch: number, yaw: number) => void
-  stopMove: () => void
   emergencyStop: () => void
   refreshMode: () => Promise<string | null>
   switchMode: (name: string) => Promise<void>
@@ -134,7 +129,7 @@ export function useTelemetry(): Telemetry {
 }
 
 export function RobotProvider({ children }: { children: ReactNode }) {
-  const conn = useOnce(() => new Go2Connection())
+  const [conn] = useState(() => new Go2Connection())
 
   // What the link is doing, and what the robot is complaining about.
   const linkState = useLinkState(conn)
@@ -185,7 +180,7 @@ export function RobotProvider({ children }: { children: ReactNode }) {
    * so the effect below reads as the one decision it makes rather than as four
    * flags being consulted in the right order.
    */
-  const recovery = useOnce(() => new ReconnectPolicy<ConnectOptions>())
+  const [recovery] = useState(() => new ReconnectPolicy<ConnectOptions>())
   const [canRetry, setCanRetry] = useState(false)
 
   /**
@@ -350,15 +345,6 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     [conn, motionMode, satisfyRequirements],
   )
 
-  const move = useCallback(
-    (x: number, y: number, z: number) => {
-      const apiId = motionMode === 'mcf' ? SPORT_CMD_MCF.Move : SPORT_CMD.Move
-      // Quiet: this fires at ~20Hz and would drown the console log.
-      conn.sendNoReply(TOPICS.SPORT_MOD, apiId, { x, y, z }, true)
-    },
-    [conn, motionMode],
-  )
-
   const setEuler = useCallback(
     (roll: number, pitch: number, yaw: number) => {
       conn.sendNoReply(TOPICS.SPORT_MOD, SPORT_CMD.Euler, { x: roll, y: pitch, z: yaw }, true)
@@ -373,10 +359,6 @@ export function RobotProvider({ children }: { children: ReactNode }) {
     },
     [conn],
   )
-
-  const stopMove = useCallback(() => {
-    conn.sendNoReply(TOPICS.SPORT_MOD, SPORT_CMD.StopMove, undefined, true)
-  }, [conn])
 
   const emergencyStop = useCallback(() => {
     // Halt locomotion, then go compliant. Both fire-and-forget so neither waits
@@ -426,19 +408,16 @@ export function RobotProvider({ children }: { children: ReactNode }) {
       setPosing: setPosingManually,
       mode: motionMode,
       reportedMode,
-      setMode: setMotionMode,
       availabilityOf,
       sport,
       runAction,
-      move,
       moveSticks,
       setEuler,
-      stopMove,
       emergencyStop,
       refreshMode: refreshMotionMode,
       switchMode: switchMotionMode,
     }),
-    [posing, setPosingManually, motionMode, reportedMode, availabilityOf, sport, runAction, move, moveSticks, setEuler, stopMove, emergencyStop, refreshMotionMode, switchMotionMode],
+    [posing, setPosingManually, motionMode, reportedMode, availabilityOf, sport, runAction, moveSticks, setEuler, emergencyStop, refreshMotionMode, switchMotionMode],
   )
 
   const media = useMemo<MediaApi>(

@@ -46,7 +46,7 @@ export interface ApiResponse {
 }
 
 /** Human-readable form of a robot status code. */
-export function describeStatus(code: number): string {
+function describeStatus(code: number): string {
   return API_STATUS_CODES[code] ? `${API_STATUS_CODES[code]} (${code})` : `Robot refused the command (status ${code})`
 }
 
@@ -85,17 +85,9 @@ const SAFE_FLUSH_MS = 250
 /** How long the robot gets to open the data channel and pass validation. */
 const HANDSHAKE_TIMEOUT_MS = 15000
 
-function hexToBase64(hex: string): string {
-  const bytes = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
-  let bin = ''
-  bytes.forEach((b) => (bin += String.fromCharCode(b)))
-  return btoa(bin)
-}
-
 /** Validation answer the robot expects: base64(md5_bytes("UnitreeGo2_" + key)). */
 export function encryptValidationKey(key: string): string {
-  return hexToBase64(md5(`UnitreeGo2_${key}`))
+  return md5.base64(`UnitreeGo2_${key}`)
 }
 
 function formatRobotTime(d: Date): string {

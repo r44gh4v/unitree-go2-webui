@@ -30,7 +30,7 @@ const BASE_HEADERS = {
     'Mozilla/5.0 (Linux; Android 14; SM-S931B Build/AP3A.240905.015.A2; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/127.0.6533.103 Mobile Safari/537.36',
 }
 
-export class UnitreeCloud {
+class UnitreeCloud {
   constructor({ region = 'global', deviceType = 'Go2', accessToken = '' } = {}) {
     this.base = BASE_URLS[region] ?? BASE_URLS.global
     this.deviceType = deviceType
