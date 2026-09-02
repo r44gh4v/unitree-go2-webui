@@ -6,21 +6,13 @@
 
 import { md5 } from 'js-md5'
 import { sleep } from './sleep'
+import { bytesToBase64 } from './fileTransfer'
 import { AUDIO_API, TOPICS } from './constants'
 import type { Go2Connection } from './go2'
 
 const CHUNK_CHARS = 4096
 /** The robot rejects anything that is not 44.1 kHz 16-bit PCM WAV. */
 const TARGET_SAMPLE_RATE = 44100
-
-function bytesToBase64(bytes: Uint8Array): string {
-  let bin = ''
-  const step = 0x8000
-  for (let i = 0; i < bytes.length; i += step) {
-    bin += String.fromCharCode(...bytes.subarray(i, i + step))
-  }
-  return btoa(bin)
-}
 
 /** Encode decoded audio as a 16-bit PCM WAV at the rate the robot expects. */
 function encodeWav(channelData: Float32Array, sampleRate: number): Uint8Array {

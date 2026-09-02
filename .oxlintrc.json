@@ -23,14 +23,5 @@
 
     "react/set-state-in-effect": "off",
     "react/refs": "off"
-  },
-  "overrides": [
-    {
-      "files": ["test/**/*.mjs", "server/**/*.mjs", "api/**/*.mjs"],
-      "rules": {
-        "react-hooks/exhaustive-deps": "off",
-        "react-hooks/rules-of-hooks": "off"
-      }
-    }
-  ]
+  }
 }

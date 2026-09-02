@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRobot, useTelemetry } from '../state/RobotContext'
-import { ACTIONS, ACTION_GROUPS, type ActionSpec } from '../lib/actions'
+import { ACTIONS, ACTION_GROUPS, type ActionSpec } from '../lib/constants'
 import { actionIconSvg } from '../lib/actionIcons'
 import { SPORT_CMD, SPORT_CMD_MCF } from '../lib/constants'
 import { clearsEverything, isExclusive, staysLit } from '../lib/actionKinds'
