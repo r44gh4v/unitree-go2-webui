@@ -9,7 +9,9 @@ import path from 'node:path'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const modPath = path.join(here, '..', 'src', 'lib', 'signalling.ts')
-const { planRoute, exchangeOffer } = await import('file://' + modPath.replace(/\\/g, '/'))
+const { planRoute, exchangeOffer, canConnect, scanForRobots, resolveLanTarget } = await import(
+  'file://' + modPath.replace(/\\/g, '/')
+)
 
 import { makeChecker } from './harness.mjs'
 const { check, finish } = makeChecker()
@@ -155,6 +157,60 @@ console.log('[signalling] trading the offer')
     msg = e.message
   }
   check('an unexplained failure names the status', msg, 'Signaling failed with HTTP 500')
+}
+
+console.log('[signalling] what each method needs before Connect can be pressed')
+{
+  const f = { ip: '', serial: '', token: '', pickedSerial: '' }
+  check('ip needs an address', canConnect('ip', f), false)
+  check('whitespace is not an address', canConnect('ip', { ...f, ip: '   ' }), false)
+  check('an address is enough', canConnect('ip', { ...f, ip: '192.168.0.5' }), true)
+  check('serial needs the number', canConnect('serial', f), false)
+  check('a serial is enough', canConnect('serial', { ...f, serial: 'B42' }), true)
+  check('the access point needs nothing typed', canConnect('ap', f), true)
+  check('lan needs nothing typed', canConnect('lan', f), true)
+  check('cloud needs a signed-in account', canConnect('cloud', { ...f, pickedSerial: 'B42' }), false)
+  check('cloud needs a picked robot', canConnect('cloud', { ...f, token: 't' }), false)
+  check('cloud with both connects', canConnect('cloud', { ...f, token: 't', pickedSerial: 'B42' }), true)
+}
+
+console.log('[signalling] scanning this network for robots')
+{
+  const fetch = stubFetch({ '/api/discover': { body: { robots: [{ ip: '192.168.0.7', sn: 'B42' }] } } })
+  const robots = await scanForRobots({ fetch, serverHasLan: true })
+  check('returns what the server found', robots, [{ ip: '192.168.0.7', sn: 'B42' }])
+}
+{
+  const fetch = stubFetch({ '/api/discover': { ok: false, status: 500, body: { error: 'multicast failed', robots: [] } } })
+  let msg = null
+  try {
+    await scanForRobots({ fetch, serverHasLan: true })
+  } catch (e) {
+    msg = e.message
+  }
+  check("the server's reason reaches the operator", msg, 'multicast failed')
+}
+
+console.log('[signalling] lan means the first robot on this router')
+{
+  const fetch = stubFetch({ '/api/discover': { body: { robots: [{ ip: '192.168.0.7' }] } } })
+  const found = await resolveLanTarget({ fetch, serverHasLan: true })
+  check('one robot is taken silently', found, { ip: '192.168.0.7', note: null })
+}
+{
+  const fetch = stubFetch({ '/api/discover': { body: { robots: [{ ip: '192.168.0.7' }, { ip: '192.168.0.8' }] } } })
+  const found = await resolveLanTarget({ fetch, serverHasLan: true })
+  check('several robots names the choice made', found.note, 'Found 2 robots, using 192.168.0.7.')
+}
+{
+  const fetch = stubFetch({ '/api/discover': { body: { robots: [] } } })
+  let msg = null
+  try {
+    await resolveLanTarget({ fetch, serverHasLan: true })
+  } catch (e) {
+    msg = e.message
+  }
+  check('none found says what to try', msg, 'No robot answered on this network. Check both are on the same router, or use IP.')
 }
 
 finish()

@@ -1,16 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRobot, useTelemetry } from '../state/RobotContext'
 import { ACTIONS, ACTION_GROUPS, type ActionSpec } from '../lib/constants'
 import { actionIconSvg } from '../lib/actionIcons'
 import { SPORT_CMD, SPORT_CMD_MCF } from '../lib/constants'
-import { clearsEverything, isExclusive, staysLit } from '../lib/actionKinds'
-import { actionNameFor, decodeMotionState, TRACKED_ACTION_NAMES } from '../lib/motionState'
+import { clearsEverything, staysLit } from '../lib/actionKinds'
+import { freshGrid, reduce, tilePhase, type Phase } from '../lib/actionPhases'
 import type { Availability } from '../lib/actionAvailability'
 
 /** How long a refusal stays on the tile before it goes quiet again. */
 const FAIL_MS = 5000
-
-type Phase = 'idle' | 'pending' | 'on' | 'failed'
 
 /**
  * Tooltip text: what the action does, then whatever the operator needs to know
@@ -31,53 +29,31 @@ export default function ActionsPanel() {
   const { mode: motionMode, runAction, sport, availabilityOf, posing, setPosing } = motion
   const { sportState } = useTelemetry()
   const connected = connState === 'connected'
-  const [phase, setPhase] = useState<Record<string, Phase>>({})
-  const [reason, setReason] = useState<Record<string, string>>({})
-  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   /**
-   * What the robot itself reports as running, translated to a tile name -
-   * lib/motionState.ts. `phase` is left to carry only what this panel just
-   * did (pending, failed); whether a staysLit tile is actually *on* is a
-   * question telemetry answers, not something a successful send gets to
-   * assert on its own. A mode that engaged silently used to look identical to
-   * one that never fired, because both just left the tile however the last
-   * click set it.
+   * Everything a tile shows lives behind lib/actionPhases.ts: what a press,
+   * an answer, or a telemetry frame does to the grid is one tested reducer,
+   * and this panel only forwards events and renders tilePhase(). The rules -
+   * operator action outranks telemetry, telemetry outranks optimism - used to
+   * be branches in here, where nothing could pin them down.
    */
-  const [engaged, setEngaged] = useState<string | null>(null)
-  const mcfLastState = useRef('freeWalk')
-
-  const isOn = useCallback((name: string) => engaged === name || phase[name] === 'on', [engaged, phase])
+  const [grid, setGrid] = useState(freshGrid)
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   // A dropped link, or a different motion service, invalidates everything this
   // panel believes about the robot. Start again rather than showing a stale on.
   useEffect(() => {
-    setPhase({})
-    setReason({})
-    setEngaged(null)
-    mcfLastState.current = 'freeWalk'
+    setGrid(freshGrid())
   }, [connected, motionMode])
 
   useEffect(() => {
     if (!connected || !sportState) return
-    const { state, mcfLastState: next } = decodeMotionState(sportState, motionMode, mcfLastState.current)
-    mcfLastState.current = next
-    const name = actionNameFor(state)
-    setEngaged((prev) => (prev === name ? prev : name))
+    setGrid((g) => reduce(g, { kind: 'report', state: sportState, motionMode }))
   }, [connected, sportState, motionMode])
 
   useEffect(() => {
     const t = timers.current
     return () => Object.values(t).forEach(clearTimeout)
-  }, [])
-
-  const settle = useCallback((name: string, next: Phase, why?: string) => {
-    setPhase((p) => ({ ...p, [name]: next }))
-    if (why) setReason((r) => ({ ...r, [name]: why }))
-    clearTimeout(timers.current[name])
-    if (next === 'failed') {
-      timers.current[name] = setTimeout(() => setPhase((p) => ({ ...p, [name]: 'idle' })), FAIL_MS)
-    }
   }, [])
 
   const fire = (a: ActionSpec) => {
@@ -87,45 +63,21 @@ export default function ActionsPanel() {
       return
     }
 
-    const wasOn = isOn(a.name)
-    const next = staysLit(a.kind) ? !wasOn : true
-    setPhase((p) => ({ ...p, [a.name]: 'pending' }))
+    const next = staysLit(a.kind) ? tilePhase(grid, a.name) !== 'on' : true
+    setGrid((g) => reduce(g, { kind: 'pressed', name: a.name }))
+    clearTimeout(timers.current[a.name])
 
     runAction(a, next)
       .then(() => {
-        if (clearsEverything(a.kind)) {
-          // Back to standing or resting: nothing is running any more, so no
-          // tile should still claim to be.
-          setPhase({})
-          setPosing(false)
-        } else if (isExclusive(a.kind) && next) {
-          // The robot walks one way at a time, so lighting a gait releases the
-          // others rather than leaving two lit. Every other exclusive tile's
-          // optimism is cleared unconditionally - telemetry may have nothing
-          // to say about the gait that just stopped, so nothing else will.
-          setPhase((p) => {
-            const out = { ...p }
-            for (const other of ACTIONS) {
-              if (isExclusive(other.kind) && other.name !== a.name) out[other.name] = 'idle'
-            }
-            // Telemetry can identify most gaits and is authority for those;
-            // only the plain walk/run tiles it cannot tell apart still rely
-            // on this optimistic mark.
-            out[a.name] = TRACKED_ACTION_NAMES.has(a.name) ? 'idle' : 'on'
-            return out
-          })
-        } else {
-          const showOn = staysLit(a.kind) && next && !TRACKED_ACTION_NAMES.has(a.name)
-          settle(a.name, showOn ? 'on' : 'idle')
-        }
+        setGrid((g) => reduce(g, { kind: 'accepted', name: a.name, on: next }))
+        // Settling ends pose mode too, and pose lives with the drive loop.
+        if (clearsEverything(a.kind)) setPosing(false)
         log(`${a.label}${staysLit(a.kind) ? (next ? ' on' : ' off') : ''} - the robot accepted it`)
       })
       .catch((e) => {
         const message = (e as Error).message
-        // 4206 is the robot saying the posture is wrong for this move, which is
-        // almost always cured by standing up first - say so rather than echoing.
-        const hint = message.includes('4206') ? `${message} Try Stand up first.` : message
-        settle(a.name, 'failed', hint)
+        setGrid((g) => reduce(g, { kind: 'refused', name: a.name, message }))
+        timers.current[a.name] = setTimeout(() => setGrid((g) => reduce(g, { kind: 'faded', name: a.name })), FAIL_MS)
         log(`${a.label} failed: ${message}`)
       })
   }
@@ -165,14 +117,8 @@ export default function ActionsPanel() {
                 const unavailable = !stands.usable
                 const untested = connected && stands.untested
                 // Pose mode is shared state - the drive loop reads it too - so
-                // it comes from the context rather than this panel's own map.
-                // pending/failed are what this panel just did and outrank
-                // telemetry; otherwise isOn() decides, not the raw phase map.
-                const rawPhase = phase[a.name]
-                const p: Phase =
-                  a.kind === 'pose' ? (posing ? 'on' : 'idle')
-                    : rawPhase === 'pending' || rawPhase === 'failed' ? rawPhase
-                      : isOn(a.name) ? 'on' : 'idle'
+                // it comes from the context rather than the grid reducer.
+                const p: Phase = a.kind === 'pose' ? (posing ? 'on' : 'idle') : tilePhase(grid, a.name)
                 const icon = actionIconSvg(a.name)
                 return (
                   <button
@@ -188,7 +134,7 @@ export default function ActionsPanel() {
                     aria-pressed={staysLit(a.kind) ? p === 'on' : undefined}
                     aria-busy={p === 'pending' || undefined}
                     disabled={!connected || unavailable || p === 'pending'}
-                    title={describe(a, stands, p, reason[a.name])}
+                    title={describe(a, stands, p, grid.reason[a.name])}
                     // Clicking a tile left the focus ring on it afterwards, so
                     // a pressed action looked stuck. Suppressing focus on
                     // pointer press keeps the ring for Tab, where it is needed,

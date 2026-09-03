@@ -5,6 +5,7 @@ import { useRobot } from '../state/RobotContext'
 import { SWITCHABLE_MODES } from '../lib/constants'
 import type { ConnectMethod, DiscoveredRobot } from '../lib/types'
 import { lastServerInfo, probeServer } from '../lib/serverInfo'
+import { canConnect as methodReady, resolveLanTarget, scanForRobots, type SignallingDeps } from '../lib/signalling'
 import { ScanIcon } from '../components/Icons'
 
 const STORE = {
@@ -102,30 +103,22 @@ export default function ConnectPanel() {
   }, [connected, refreshMotionMode])
 
 
-  /** Ask the server which robots answer on its own network. */
-  const discover = async (): Promise<DiscoveredRobot[]> => {
-    const res = await fetch('/api/discover')
-    const body = (await res.json()) as { robots?: DiscoveredRobot[]; error?: string }
-    if (!res.ok) throw new Error(body.error ?? `Scan failed with HTTP ${res.status}`)
-    return body.robots ?? []
-  }
+  // What signalling needs from the world - the same seam its tests stub.
+  const deps: SignallingDeps = { fetch: (...a) => fetch(...a), serverHasLan: !serverless }
 
   const doConnect = async () => {
     setBusy(true)
     setNote(null)
     try {
-      // LAN is the no-typing case: find whatever is on this router, then talk
-      // to it by address. The transports below it never see a 'lan' method.
+      // LAN is the no-typing case: lib/signalling.ts resolves it to a plain
+      // address, so the transports below never see a 'lan' method.
       let targetIp = ip.trim()
       if (method === 'lan') {
         setNote('Looking for the robot on this network…')
-        const robots = await discover()
-        if (!robots.length) {
-          throw new Error('No robot answered on this network. Check both are on the same router, or use IP.')
-        }
-        targetIp = robots[0].ip
+        const found = await resolveLanTarget(deps)
+        targetIp = found.ip
         setIp(targetIp)
-        setNote(robots.length > 1 ? `Found ${robots.length} robots, using ${targetIp}.` : null)
+        setNote(found.note)
       }
 
       await connect({
@@ -149,7 +142,7 @@ export default function ConnectPanel() {
     setFound([])
     setNote(null)
     try {
-      const robots = await discover()
+      const robots = await scanForRobots(deps)
       setFound(robots)
       if (robots.length) log(`Found ${robots.length} robot(s).`)
       else setNote('No robots answered on this network.')
@@ -178,11 +171,7 @@ export default function ConnectPanel() {
     }
   }
 
-  const canConnect =
-    method === 'ip' ? !!ip.trim()
-      : method === 'serial' ? !!serial.trim()
-        : method === 'ap' || method === 'lan' ? true
-          : !!token && !!pickedSerial
+  const canConnect = methodReady(method, { ip, serial, token, pickedSerial })
 
   const methodLabel = METHODS.find((m) => m.value === method)?.label ?? method
   const where = method === 'cloud' ? pickedSerial : method === 'serial' ? serial : ip

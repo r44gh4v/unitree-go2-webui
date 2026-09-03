@@ -4,7 +4,7 @@ import { unwrapResponse } from '../lib/go2'
 import { toRobotWav, uploadAudioFile, uploadMegaphone } from '../lib/audioUpload'
 import { useMicRecorder } from '../hooks/useMicRecorder'
 import { AUDIO_API, PLAY_MODES, TOPICS, VUI_API, VUI_COLORS, VUI_COLOR_HEX, type VuiColor } from '../lib/constants'
-import { parseMaybeJson } from '../lib/wireJson'
+import { playbackLabel } from '../lib/audioPlayback'
 import {
   LightIcon, SpeakerIcon, PlayIcon, PauseIcon, SkipBackIcon, SkipFwdIcon, RefreshIcon, UploadIcon, MegaphoneIcon, MicIcon, BoltIcon,
 } from '../components/Icons'
@@ -101,11 +101,9 @@ export default function MediaPanel() {
   useEffect(() => {
     if (!connected) return
     return conn.subscribe(TOPICS.AUDIO_HUB_PLAY_STATE, (d) => {
-      const s = parseMaybeJson<Record<string, unknown>>(d)
-      if (!s || typeof s !== 'object') return
-      const name = s.CUSTOM_NAME ?? s.custom_name ?? s.name ?? s.unique_id ?? s.UNIQUE_ID
-      const status = s.status ?? s.state ?? s.play_state
-      setPlaying(typeof name === 'string' ? `${name}${status ? ` - ${status}` : ''}` : status ? String(status) : null)
+      // undefined means the frame carried no usable report - keep what is shown.
+      const label = playbackLabel(d)
+      if (label !== undefined) setPlaying(label)
     })
   }, [connected, conn])
 

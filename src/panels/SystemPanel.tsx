@@ -2,10 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { parseMaybeJson } from '../lib/wireJson'
 import { useRobot } from '../state/RobotContext'
 import { unwrapResponse } from '../lib/go2'
-import {
-  BASHRUNNER_API, BASH_SCRIPTS, MOTION_SWITCHER_API, RM_CON_API, ROBOT_STATE_API,
-  SPORT_CMD, SPORT_CMD_MCF, TOPICS, UWB_API, VUI_API,
-} from '../lib/constants'
+import { BASHRUNNER_API, BASH_SCRIPTS, ROBOT_STATE_API, TOPICS } from '../lib/constants'
+import { settingsFor, type RobotSetting } from '../lib/robotSettings'
 import { TerminalIcon } from '../components/Icons'
 
 /** How many distinct self-test results are kept. */
@@ -27,96 +25,6 @@ interface MultipleState {
   uwbSwitch?: boolean | number
   volume?: number
 }
-
-/**
- * Robot-wide settings the phone app also carries, and that this link can
- * genuinely reach. Anything the app does over Bluetooth rather than over the
- * data channel - the Wi-Fi name and password above all - is not here, because
- * no api exists for it.
- */
-interface SettingSpec {
-  key: string
-  label: string
-  note: string
-  topic: string
-  setId: number
-  getId?: number
-  /** builds the write payload; the read side is handled per setting below */
-  write: (on: boolean) => unknown
-  /** pulls the boolean out of whatever shape the getter answers with */
-  read?: (v: unknown) => boolean | undefined
-  mcfOnly?: boolean
-}
-
-const asBool = (v: unknown): boolean | undefined => {
-  if (typeof v === 'boolean') return v
-  if (typeof v === 'number') return v !== 0
-  return undefined
-}
-
-const SETTINGS: SettingSpec[] = [
-  {
-    key: 'autoRecovery',
-    label: 'Get up automatically after a fall',
-    note: 'The robot rights itself without being asked. Unified firmware only.',
-    topic: TOPICS.SPORT_MOD,
-    setId: SPORT_CMD_MCF.SetAutoRecovery,
-    getId: SPORT_CMD_MCF.GetAutoRecovery,
-    write: (on) => ({ data: on }),
-    read: (v) => asBool((v as { data?: unknown })?.data ?? v),
-    mcfOnly: true,
-  },
-  {
-    key: 'joystick',
-    label: 'Handheld remote enabled',
-    note: 'Turns the physical controller on or off. Reported unreliable on some firmware.',
-    topic: TOPICS.SPORT_MOD,
-    setId: SPORT_CMD.SwitchJoystick,
-    write: (on) => ({ data: on }),
-  },
-  {
-    key: 'voice',
-    label: 'Voice assistant',
-    note: 'Master switch for the voice UI. Turning it off also silences spoken feedback.',
-    topic: TOPICS.VUI,
-    setId: VUI_API.SET_SWITCH,
-    getId: VUI_API.GET_SWITCH,
-    write: (on) => ({ enable: on ? 1 : 0 }),
-    read: (v) => asBool((v as { enable?: unknown })?.enable),
-  },
-  {
-    key: 'remotePermission',
-    label: 'Allow connections over the internet',
-    note: 'Whether the robot accepts cloud-relayed connections at all',
-    topic: TOPICS.RM_CON,
-    setId: RM_CON_API.SET_PERMISSION,
-    getId: RM_CON_API.GET_PERMISSION,
-    // This one is not a boolean on the wire: 2 allows, 1 forbids.
-    write: (on) => ({ enable_status: on ? 2 : 1 }),
-    read: (v) => {
-      const n = (v as { enable_status?: unknown })?.enable_status
-      return typeof n === 'number' ? n === 2 : undefined
-    },
-  },
-  {
-    key: 'silent',
-    label: 'Silent start',
-    note: 'Do not start the motion service automatically at boot',
-    topic: TOPICS.MOTION_SWITCHER,
-    setId: MOTION_SWITCHER_API.SET_SILENT,
-    getId: MOTION_SWITCHER_API.GET_SILENT,
-    write: (on) => ({ silent: on }),
-    read: (v) => asBool((v as { silent?: unknown })?.silent),
-  },
-  {
-    key: 'uwb',
-    label: 'UWB tag following',
-    note: 'Only does anything when the ultra-wideband tag accessory is fitted.',
-    topic: TOPICS.UWB_REQ,
-    setId: UWB_API.SWITCH,
-    write: (on) => ({ enable: on ? 1 : 0 }),
-  },
-]
 
 /** Services, firmware details, and the on-board script runner. */
 export default function SystemPanel() {
@@ -196,13 +104,13 @@ export default function SystemPanel() {
       return
     }
     let cancelled = false
-    for (const s of SETTINGS) {
-      if (!s.getId || !s.read || (s.mcfOnly && motionMode !== 'mcf')) continue
+    for (const s of settingsFor(motionMode)) {
+      if (!s.getId || !s.decode) continue
       conn
         .request(s.topic, s.getId)
         .then((res) => {
           if (cancelled) return
-          const value = s.read!(unwrapResponse(res))
+          const value = s.decode!(unwrapResponse(res))
           if (value !== undefined) setSettings((p) => ({ ...p, [s.key]: value }))
         })
         .catch(() => undefined)
@@ -212,10 +120,10 @@ export default function SystemPanel() {
     }
   }, [connected, conn, motionMode])
 
-  const applySetting = async (s: SettingSpec, next: boolean) => {
+  const applySetting = async (s: RobotSetting, next: boolean) => {
     setSettingsError(null)
     try {
-      await conn.request(s.topic, s.setId, s.write(next))
+      await conn.request(s.topic, s.setId, s.encode(next))
       setSettings((p) => ({ ...p, [s.key]: next }))
       log(`${s.label}: ${next ? 'on' : 'off'}`)
     } catch (e) {
@@ -307,7 +215,7 @@ export default function SystemPanel() {
         Settings the phone app also exposes. Each is read from the robot where it offers a getter, and left unknown
         rather than guessed where it does not.
       </p>
-      {SETTINGS.filter((s) => !s.mcfOnly || motionMode === 'mcf').map((s) => {
+      {settingsFor(motionMode).map((s) => {
         const state = settings[s.key]
         return (
           <label

@@ -11,7 +11,10 @@
 // before a peer connection exists. Keeping it here means it can be exercised
 // against a stubbed fetch instead of a robot, a network and a proxy.
 //
-// Imports nothing, so the tests load it straight from source.
+// Imports nothing at runtime (one type-only import, which node strips), so the
+// tests load it straight from source.
+
+import type { DiscoveredRobot } from './types.ts'
 
 /** How the console is asked to reach the robot. */
 export interface ConnectOptions {
@@ -182,4 +185,48 @@ async function fetchRelay(opts: ConnectOptions, deps: SignallingDeps) {
   }
   const body = (await resp.json()) as { turnServer: unknown; iceServers: RTCIceServer[] }
   return { turnServer: body.turnServer, iceServers: body.iceServers ?? [] }
+}
+
+/** What the connect form has filled in, whether or not it is enough. */
+export interface ConnectFields {
+  ip: string
+  serial: string
+  token: string
+  /** the robot chosen from the signed-in account's list */
+  pickedSerial: string
+}
+
+/**
+ * Whether Connect can be pressed. Each method needs one thing: an address, a
+ * serial, nothing at all (the access point is a fixed address, and lan finds
+ * its own), or a signed-in account with a robot picked from it.
+ */
+export function canConnect(method: string, f: ConnectFields): boolean {
+  if (method === 'ip') return !!f.ip.trim()
+  if (method === 'serial') return !!f.serial.trim()
+  if (method === 'ap' || method === 'lan') return true
+  if (method === 'cloud') return !!f.token && !!f.pickedSerial
+  return false
+}
+
+/** Ask the server which robots answer on its own network. */
+export async function scanForRobots(deps: SignallingDeps): Promise<DiscoveredRobot[]> {
+  const res = await deps.fetch('/api/discover')
+  const body = (await res.json()) as { robots?: DiscoveredRobot[]; error?: string }
+  if (!res.ok) throw new Error(body.error ?? `Scan failed with HTTP ${res.status}`)
+  return body.robots ?? []
+}
+
+/**
+ * What the lan method means: find whatever is on this router and talk to it by
+ * address. The transports never see a 'lan' method - it resolves to a plain ip
+ * here, before a connection is opened. Throws when nothing answers, with what
+ * to try next; more than one robot names the choice it made.
+ */
+export async function resolveLanTarget(deps: SignallingDeps): Promise<{ ip: string; note: string | null }> {
+  const robots = await scanForRobots(deps)
+  if (!robots.length) {
+    throw new Error('No robot answered on this network. Check both are on the same router, or use IP.')
+  }
+  return { ip: robots[0].ip, note: robots.length > 1 ? `Found ${robots.length} robots, using ${robots[0].ip}.` : null }
 }
