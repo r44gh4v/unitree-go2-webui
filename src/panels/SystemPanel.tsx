@@ -323,7 +323,6 @@ export default function SystemPanel() {
               type="checkbox"
               checked={!!state}
               onChange={(e) => void applySetting(s, e.target.checked)}
-              style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
             />
             <span className="track" />
           </label>
@@ -440,7 +439,6 @@ export default function SystemPanel() {
           type="checkbox"
           checked={showRisky}
           onChange={(e) => setShowRisky(e.target.checked)}
-          style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
         />
         <span className="track" />
       </label>

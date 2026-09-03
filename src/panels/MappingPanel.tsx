@@ -238,7 +238,6 @@ export default function MappingPanel() {
           type="checkbox"
           checked={enabled}
           onChange={(e) => setEnabled(e.target.checked)}
-          style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
         />
         <span className="track" />
       </label>

@@ -289,12 +289,6 @@ export default function ConnectPanel() {
               </div>
             )}
 
-            {/* {method === 'ap' && (
-              <p className="note">
-                Join the Wi-Fi named after the robot's serial. This machine loses internet
-              </p>
-            )} */}
-
             {method === 'lan' && (
               <p className="note">
                 Finds the first robot on this router

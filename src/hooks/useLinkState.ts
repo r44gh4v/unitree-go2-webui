@@ -24,8 +24,6 @@ export interface LinkState {
   setVideoOn: (on: boolean) => void
   setAudioOn: (on: boolean) => void
   clearFaults: () => void
-  /** True while the link is up; the answer most panels actually want. */
-  connected: boolean
 }
 
 export function useLinkState(conn: Go2Connection): LinkState {
@@ -83,10 +81,9 @@ export function useLinkState(conn: Go2Connection): LinkState {
   }, [conn])
 
   const clearFaults = useCallback(() => setFaults([]), [])
-  const connected = connState === 'connected'
 
   return useMemo(
-    () => ({ connState, connError, ip, stream, videoOn, audioOn, faults, setVideoOn, setAudioOn, clearFaults, connected }),
-    [connState, connError, ip, stream, videoOn, audioOn, faults, clearFaults, connected],
+    () => ({ connState, connError, ip, stream, videoOn, audioOn, faults, setVideoOn, setAudioOn, clearFaults }),
+    [connState, connError, ip, stream, videoOn, audioOn, faults, clearFaults],
   )
 }

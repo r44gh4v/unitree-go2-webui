@@ -23,7 +23,7 @@ const START_VIEW = { radius: 6, theta: Math.PI / 4, phi: Math.PI / 3 }
  * surface, not a cloud of dots). Drag to orbit, scroll to zoom.
  */
 export default function LidarPanel() {
-  const { conn, connState, sensing, log } = useRobot()
+  const { conn, connState, sensing } = useRobot()
   const { lidarOn, lidarState } = sensing
   const connected = connState === 'connected'
   // Read inside the deadline timeout below, which is set up once per lidar-on
@@ -36,7 +36,6 @@ export default function LidarPanel() {
   const renderRef = useRef<(() => void) | null>(null)
   const resetRef = useRef<(() => void) | null>(null)
   const topDownRef = useRef<(() => void) | null>(null)
-  const clearMapRef = useRef<(() => void) | null>(null)
   const [stats, setStats] = useState<{ faces: number; voxels: number; ts: number } | null>(null)
   const [status, setStatus] = useState<string | null>(null)
 
@@ -266,7 +265,7 @@ export default function LidarPanel() {
       // a lidar the operator deliberately left running.
       setStatus(null)
     }
-  }, [lidarOn, connected, conn, log])
+  }, [lidarOn, connected, conn])
 
   const clearMap = useCallback(() => {
     const geom = meshRef.current?.geometry
@@ -277,7 +276,6 @@ export default function LidarPanel() {
     setStats(null)
     renderRef.current?.()
   }, [])
-  clearMapRef.current = clearMap
 
   return (
     <div className="section lidar-section">

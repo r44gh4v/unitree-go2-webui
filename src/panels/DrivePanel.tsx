@@ -43,135 +43,131 @@ export default function DrivePanel() {
   const onTurn = useCallback((x: number) => setStick({ x: 0, y: 0, z: -x }), [setStick])
 
   return (
-    <>
-      <div className="section">
-        <p className="eyebrow">Drive</p>
+    <div className="section">
+      <p className="eyebrow">Drive</p>
 
-        {/* The dials show whatever is driving, not just the mouse: holding W
-            walks the left nub up its dial and lights the W cap, so the keyboard
-            and a gamepad are visible on the same instrument. In pose mode the
-            same two sticks lean the body, so they say so. */}
-        <div className="sticks">
-          <Joystick
-            label={posing ? 'Lean' : 'Walk'}
-            size={104}
-            onChange={onWalk}
-            disabled={!connected}
-            value={{ x: active.x, y: active.y }}
-            keys={{ up: 'W', down: 'S', left: 'A', right: 'D' }}
-          />
-          <Joystick
-            label={posing ? 'Twist' : 'Turn'}
-            size={104}
-            onChange={(x) => onTurn(x)}
-            disabled={!connected}
-            value={{ x: -active.z, y: 0 }}
-            keys={{ left: 'Q', right: 'E' }}
-          />
-        </div>
-
-        {/* Walk and Turn are the everyday speed controls: they scale what goes
-            on the wire, independently, and 100% is what the remote sends. */}
-        <div className="slider-row">
-          <label htmlFor="lin">Walk</label>
-          <input
-            id="lin"
-            type="range"
-            min={0.2}
-            max={1}
-            step={0.05}
-            value={linear}
-            disabled={posing}
-            title="Walking speed, as a share of full stick. 100% matches the handheld remote"
-            onChange={(e) => setLinear(Number(e.target.value))}
-          />
-          <span className="val">{Math.round(linear * 100)}%</span>
-        </div>
-        <div className="slider-row">
-          <label htmlFor="ang">Turn</label>
-          <input
-            id="ang"
-            type="range"
-            min={0.2}
-            max={1}
-            step={0.05}
-            value={angular}
-            disabled={posing}
-            title="Turning speed, as a share of full stick. Independent of the walking speed above"
-            onChange={(e) => setAngular(Number(e.target.value))}
-          />
-          <span className="val">{Math.round(angular * 100)}%</span>
-        </div>
-
-        <label
-          className={`toggle${avoidance ? ' on' : ''} mt-3`}
-          title={
-            (avoidance === null
-              ? 'The robot has not reported this state yet. You can still set it'
-              : avoidance
-                ? 'On: the robot refuses the drive commands you give it if they would hit something'
-                : lidarOn
-                  ? 'Off: the robot will drive into things if you steer it into them'
-                  : 'Off. Turning it on starts the lidar, which it needs to see') +
-            ' - this only filters your own steering. For the robot to drive itself around obstacles, use Auto avoid in the Actions tab.'
-          }
-        >
-          <span className="toggle-label">
-            <ShieldIcon size={15} />
-            Obstacle avoidance
-            {connected && avoidance === null && (
-              <button
-                className="btn sm ghost"
-                style={{ padding: '0 6px' }}
-                title="The robot has not reported this state - ask it again"
-                onClick={(e) => {
-                  e.preventDefault()
-                  recheckAvoidance()
-                }}
-              >
-                unknown - recheck
-              </button>
-            )}
-          </span>
-          <input
-            type="checkbox"
-            checked={!!avoidance}
-            disabled={!connected || busy}
-            onChange={(e) => setAvoidance(e.target.checked)}
-            style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
-          />
-          <span className="track" />
-        </label>
-
-        {/* The sensor itself, not the map view. Off stops it turning, which is
-            worth doing when the map is not in use - it is a moving part, and it
-            costs bandwidth and battery. It sits with obstacle avoidance because
-            both are about what the robot can sense. */}
-        <label
-          className={`toggle${lidarOn ? ' on' : ''} mt-3`}
-          title={
-            lidarOn
-              ? 'Stop the lidar spinning. Obstacle avoidance needs it, so that goes off too'
-              : settling
-                ? 'Switching off - re-sending OFF for a few seconds in case the avoidance service restarts it'
-                : 'Start the lidar. It spins while on, and feeds the Lidar tab'
-          }
-        >
-          <span className="toggle-label">
-            <ScanIcon size={15} />
-            Lidar
-            {settling && <span className="chip">stopping…</span>}
-          </span>
-          <input
-            type="checkbox"
-            checked={lidarOn}
-            disabled={!connected || busy}
-            onChange={(e) => setLidar(e.target.checked)}
-            style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
-          />
-          <span className="track" />
-        </label>
+      {/* The dials show whatever is driving, not just the mouse: holding W
+          walks the left nub up its dial and lights the W cap, so the keyboard
+          and a gamepad are visible on the same instrument. In pose mode the
+          same two sticks lean the body, so they say so. */}
+      <div className="sticks">
+        <Joystick
+          label={posing ? 'Lean' : 'Walk'}
+          size={104}
+          onChange={onWalk}
+          disabled={!connected}
+          value={{ x: active.x, y: active.y }}
+          keys={{ up: 'W', down: 'S', left: 'A', right: 'D' }}
+        />
+        <Joystick
+          label={posing ? 'Twist' : 'Turn'}
+          size={104}
+          onChange={(x) => onTurn(x)}
+          disabled={!connected}
+          value={{ x: -active.z, y: 0 }}
+          keys={{ left: 'Q', right: 'E' }}
+        />
       </div>
-    </>
+
+      {/* Walk and Turn are the everyday speed controls: they scale what goes
+          on the wire, independently, and 100% is what the remote sends. */}
+      <div className="slider-row">
+        <label htmlFor="lin">Walk</label>
+        <input
+          id="lin"
+          type="range"
+          min={0.2}
+          max={1}
+          step={0.05}
+          value={linear}
+          disabled={posing}
+          title="Walking speed, as a share of full stick. 100% matches the handheld remote"
+          onChange={(e) => setLinear(Number(e.target.value))}
+        />
+        <span className="val">{Math.round(linear * 100)}%</span>
+      </div>
+      <div className="slider-row">
+        <label htmlFor="ang">Turn</label>
+        <input
+          id="ang"
+          type="range"
+          min={0.2}
+          max={1}
+          step={0.05}
+          value={angular}
+          disabled={posing}
+          title="Turning speed, as a share of full stick. Independent of the walking speed above"
+          onChange={(e) => setAngular(Number(e.target.value))}
+        />
+        <span className="val">{Math.round(angular * 100)}%</span>
+      </div>
+
+      <label
+        className={`toggle${avoidance ? ' on' : ''} mt-3`}
+        title={
+          (avoidance === null
+            ? 'The robot has not reported this state yet. You can still set it'
+            : avoidance
+              ? 'On: the robot refuses the drive commands you give it if they would hit something'
+              : lidarOn
+                ? 'Off: the robot will drive into things if you steer it into them'
+                : 'Off. Turning it on starts the lidar, which it needs to see') +
+          ' - this only filters your own steering. For the robot to drive itself around obstacles, use Auto avoid in the Actions tab.'
+        }
+      >
+        <span className="toggle-label">
+          <ShieldIcon size={15} />
+          Obstacle avoidance
+          {connected && avoidance === null && (
+            <button
+              className="btn sm ghost"
+              style={{ padding: '0 6px' }}
+              title="The robot has not reported this state - ask it again"
+              onClick={(e) => {
+                e.preventDefault()
+                recheckAvoidance()
+              }}
+            >
+              unknown - recheck
+            </button>
+          )}
+        </span>
+        <input
+          type="checkbox"
+          checked={!!avoidance}
+          disabled={!connected || busy}
+          onChange={(e) => setAvoidance(e.target.checked)}
+        />
+        <span className="track" />
+      </label>
+
+      {/* The sensor itself, not the map view. Off stops it turning, which is
+          worth doing when the map is not in use - it is a moving part, and it
+          costs bandwidth and battery. It sits with obstacle avoidance because
+          both are about what the robot can sense. */}
+      <label
+        className={`toggle${lidarOn ? ' on' : ''} mt-3`}
+        title={
+          lidarOn
+            ? 'Stop the lidar spinning. Obstacle avoidance needs it, so that goes off too'
+            : settling
+              ? 'Switching off - re-sending OFF for a few seconds in case the avoidance service restarts it'
+              : 'Start the lidar. It spins while on, and feeds the Lidar tab'
+        }
+      >
+        <span className="toggle-label">
+          <ScanIcon size={15} />
+          Lidar
+          {settling && <span className="chip">stopping…</span>}
+        </span>
+        <input
+          type="checkbox"
+          checked={lidarOn}
+          disabled={!connected || busy}
+          onChange={(e) => setLidar(e.target.checked)}
+        />
+        <span className="track" />
+      </label>
+    </div>
   )
 }

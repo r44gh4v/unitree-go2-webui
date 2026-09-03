@@ -207,6 +207,7 @@ textarea.input { font-family: var(--mono); resize: vertical; min-height: 60px; }
   font-size: 13px;
   color: var(--text);
 }
+.toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
 .toggle-label { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
 .toggle-label svg { color: var(--accent); flex: none; }
 .toggle .track { flex: none; }

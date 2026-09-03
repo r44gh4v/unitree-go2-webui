@@ -49,7 +49,6 @@ export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
   /** The ramped command actually on the wire, as opposed to the raw demand. */
   const sent = useRef<DriveVector>(ZERO)
   const [active, setActive] = useState<DriveVector>(ZERO)
-  const [gamepadName, setGamepadName] = useState<string | null>(null)
 
   // Read through a ref so adjusting a speed slider does not restart the loop -
   // restarting mid-stride would send a stop and interrupt the drive.
@@ -95,11 +94,9 @@ export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
   useEffect(() => {
     const onConnect = (e: GamepadEvent) => {
       gamepadIndex.current = e.gamepad.index
-      setGamepadName(e.gamepad.id)
     }
     const onDisconnect = () => {
       gamepadIndex.current = null
-      setGamepadName(null)
     }
     window.addEventListener('gamepadconnected', onConnect)
     window.addEventListener('gamepaddisconnected', onDisconnect)
@@ -199,7 +196,7 @@ export function useDriveLoop(limits: DriveLimits, enabled: boolean) {
     }
   }, [enabled, connState, moveSticks, setEuler])
 
-  return { setStick, active, gamepadName }
+  return { setStick, active }
 }
 
 const DRIVE_KEYS = new Set([

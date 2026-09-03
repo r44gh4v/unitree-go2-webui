@@ -215,27 +215,7 @@
 .log .meta { color: var(--faint); }
 .log > div { margin-bottom: 1px; }
 
-/* ---------- footer ---------- */
-
-.footer {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 8px;
-  border-top: 1px solid var(--line-strong);
-  background: var(--surface-2);
-  font-size: 11px;
-  color: var(--muted);
-  overflow: hidden;
-  white-space: nowrap;
-}
-.footer .chip { padding: 1px 8px; font-size: 11px; }
-/* the keyboard reminder is the first thing to go when space runs out */
-.footer .hint { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-@media (max-width: 900px) { .footer .hint { display: none; } }
-.footer b { color: var(--text-strong); font-weight: 600; }
-
-/* a colored state pill, shared look between the footer and the connection banner */
+/* a colored state pill for the rail's link badge */
 .pill {
   display: inline-flex;
   align-items: center;
@@ -254,19 +234,6 @@
 .pill-connecting, .pill-validating { background: rgba(249, 157, 144, 0.22); color: var(--text-strong); border-color: var(--salmon); }
 .pill-connected { background: rgba(47, 143, 91, 0.16); color: var(--ok); border-color: rgba(47, 143, 91, 0.4); }
 .pill-error { background: rgba(158, 18, 44, 0.12); color: var(--text-strong); border-color: rgba(158, 18, 44, 0.4); }
-/* fits the 26px footer strip */
-.footer .theme-toggle { padding: 1px 6px; }
-
-.footer kbd {
-  font-family: var(--mono);
-  font-size: 10px;
-  background: var(--surface);
-  border: 1px solid var(--line-strong);
-  border-bottom-width: 2px;
-  border-radius: 3px;
-  padding: 0 4px;
-  color: var(--text-strong);
-}
 
 /* ---------- lock screen ---------- */
 

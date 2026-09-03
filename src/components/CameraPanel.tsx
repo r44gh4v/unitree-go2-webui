@@ -143,7 +143,7 @@ export default function CameraPanel() {
       </div>
 
       <div className="camera-bar">
-        <button className={`btn sm${videoOn ? ' on' : ''}`} disabled={!connected} {...{ title: videoOn ? 'Stop the video stream' : 'Start the video stream' }} onClick={() => setVideo(!videoOn)}>
+        <button className={`btn sm${videoOn ? ' on' : ''}`} disabled={!connected} title={videoOn ? 'Stop the video stream' : 'Start the video stream'} onClick={() => setVideo(!videoOn)}>
           {videoOn ? <CameraIcon size={15} /> : <CameraOffIcon size={15} />}
           Camera
         </button>
@@ -153,7 +153,7 @@ export default function CameraPanel() {
         <button
           className={`btn sm${audioOn && !muted ? ' on' : ''}`}
           disabled={!connected}
-          {...{ title: audioOn && !muted ? 'Stop listening to the robot' : 'Hear what the robot hears' }}
+          title={audioOn && !muted ? 'Stop listening to the robot' : 'Hear what the robot hears'}
           onClick={() => {
             const on = !(audioOn && !muted)
             setAudio(on)

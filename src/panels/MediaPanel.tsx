@@ -4,6 +4,7 @@ import { unwrapResponse } from '../lib/go2'
 import { toRobotWav, uploadAudioFile, uploadMegaphone } from '../lib/audioUpload'
 import { useMicRecorder } from '../hooks/useMicRecorder'
 import { AUDIO_API, PLAY_MODES, TOPICS, VUI_API, VUI_COLORS, VUI_COLOR_HEX, type VuiColor } from '../lib/constants'
+import { parseMaybeJson } from '../lib/wireJson'
 import {
   LightIcon, SpeakerIcon, PlayIcon, PauseIcon, SkipBackIcon, SkipFwdIcon, RefreshIcon, UploadIcon, MegaphoneIcon, MicIcon, BoltIcon,
 } from '../components/Icons'
@@ -100,8 +101,8 @@ export default function MediaPanel() {
   useEffect(() => {
     if (!connected) return
     return conn.subscribe(TOPICS.AUDIO_HUB_PLAY_STATE, (d) => {
-      const s = (typeof d === 'string' ? safeParse(d) : d) as Record<string, unknown> | null
-      if (!s) return
+      const s = parseMaybeJson<Record<string, unknown>>(d)
+      if (!s || typeof s !== 'object') return
       const name = s.CUSTOM_NAME ?? s.custom_name ?? s.name ?? s.unique_id ?? s.UNIQUE_ID
       const status = s.status ?? s.state ?? s.play_state
       setPlaying(typeof name === 'string' ? `${name}${status ? ` - ${status}` : ''}` : status ? String(status) : null)
@@ -196,7 +197,6 @@ export default function MediaPanel() {
           checked={lightOn}
           disabled={!connected}
           onChange={(e) => toggleLight(e.target.checked)}
-          style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
         />
         <span className="track" />
       </label>
@@ -248,7 +248,7 @@ export default function MediaPanel() {
           <BoltIcon size={14} />
           Blink instead of steady
         </span>
-        <input type="checkbox" checked={flash} onChange={(e) => setFlash(e.target.checked)} style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }} />
+        <input type="checkbox" checked={flash} onChange={(e) => setFlash(e.target.checked)} />
         <span className="track" />
       </label>
 
@@ -465,12 +465,4 @@ export default function MediaPanel() {
 
     </div>
   )
-}
-
-function safeParse(s: string): Record<string, unknown> | null {
-  try {
-    return JSON.parse(s) as Record<string, unknown>
-  } catch {
-    return null
-  }
 }
